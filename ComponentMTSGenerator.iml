@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="EclipseModuleManager">
+    <libelement value="jar://$MODULE_DIR$/lib/xerces.jar!/" />
+    <libelement value="jar://$MODULE_DIR$/lib/YicesLite.jar!/" />
+    <libelement value="jar://$MODULE_DIR$/lib/daikon.jar!/" />
+    <libelement value="jar://$MODULE_DIR$/lib/gson-2.5.jar!/" />
+    <libelement value="jar://$MODULE_DIR$/lib/codemodel-2.6.jar!/" />
+    <src_description expected_position="0">
+      <src_folder value="file://$MODULE_DIR$/src" expected_position="0" />
+    </src_description>
+  </component>
+  <component name="NewModuleRootManager" inherit-compiler-output="false">
+    <output url="file://$MODULE_DIR$/bin" />
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/.idea" />
+      <excludeFolder url="file://$MODULE_DIR$/src/java/typequals" />
+      <excludeFolder url="file://$MODULE_DIR$/src/parser" />
+    </content>
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="module-library">
+      <library name="xerces.jar">
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/lib/xerces.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library">
+      <library name="YicesLite.jar">
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/lib/YicesLite.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library">
+      <library name="daikon.jar">
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/lib/daikon.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+    <orderEntry type="module" module-name="ltsa" />
+    <orderEntry type="module" module-name="MTSSynthesis" />
+    <orderEntry type="module" module-name="MTSTools" />
+    <orderEntry type="module-library">
+      <library name="gson-2.5.jar">
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/lib/gson-2.5.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library">
+      <library name="codemodel-2.6.jar">
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/lib/codemodel-2.6.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/lib/java-getopt.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES>
+          <root url="jar://$MODULE_DIR$/lib/java-getopt.jar!/" />
+        </SOURCES>
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/lib/plume.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/lib/openmodbat-3.0.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+  </component>
+</module>
