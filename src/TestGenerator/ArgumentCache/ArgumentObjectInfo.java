@@ -10,6 +10,9 @@ import java.io.ObjectOutputStream;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 
 /**
@@ -27,6 +30,7 @@ public class ArgumentObjectInfo implements Serializable {
     public String serializedObject;
     public String class_string;
     public String paramType_string;
+    public Set<String> tracked_classnames;
 
     public ArgumentObjectInfo(){}
     public ArgumentObjectInfo(Object object_, Class class_, Class paramType, String serializedObject) {
@@ -47,22 +51,34 @@ public class ArgumentObjectInfo implements Serializable {
         this.paramType = paramType;
     }
     private void writeObject(ObjectOutputStream out) throws IOException {
+        /*
         GsonBuilder gsonBuilder = new GsonBuilder();
         gsonBuilder.registerTypeAdapterFactory(new UniversalTypeAdapterFactory());
         Gson gson = gsonBuilder
                 .serializeNulls()
                 .enableComplexMapKeySerialization()
                 .create();
-        this.serializedObject = gson.toJson(this.object_);
+        */
+
+        this.serializedObject = "";
+        this.tracked_classnames = new HashSet<>();
+
+        if (this.object_ != null){
+            Gson gson = UniversalTypeAdapterFactory.buildGson(this.object_, this.tracked_classnames);
+            this.serializedObject = gson.toJson(this.object_);
+        }
+
         this.class_string = this.class_ == null ? "null" : this.class_.getName() ;
         this.paramType_string = this.paramType == null ? "null" : this.paramType.getName();
 
+        out.writeObject(this.tracked_classnames);
         out.writeObject(this.serializedObject);
         out.writeObject(this.class_string);
         out.writeObject(this.paramType_string);
     }
 
     private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException{
+        this.tracked_classnames = (HashSet<String>) in.readObject();
         this.serializedObject = (String)in.readObject();
         this.class_string = (String)in.readObject();
         this.paramType_string = (String)in.readObject();
@@ -71,13 +87,16 @@ public class ArgumentObjectInfo implements Serializable {
         this.object_ = null;
 
         try {
+            /*
             GsonBuilder gsonBuilder = new GsonBuilder();
             gsonBuilder.registerTypeAdapterFactory(new UniversalTypeAdapterFactory());
             Gson gson = gsonBuilder
                     .serializeNulls()
                     .enableComplexMapKeySerialization()
+                    .serializeSpecialFloatingPointValues()
                     .create();
-
+                    */
+            Gson gson = UniversalTypeAdapterFactory.buildGson();
             if (this.class_!=null){
                 this.object_ = UniversalTypeAdapterFactory.deserialize(serializedObject, this.class_, gson);
             }

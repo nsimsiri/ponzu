@@ -1,5 +1,10 @@
 package TestGenerator.ArgumentCache;
 
+import TestGenerator.UnitTests.UniversalTypeAdapterFactoryTest;
+import com.google.gson.ExclusionStrategy;
+import com.google.gson.FieldAttributes;
+import com.google.gson.FieldNamingPolicy;
+import com.google.gson.FieldNamingStrategy;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -25,7 +30,9 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Deque;
 import java.util.Formatter;
 import java.util.HashMap;
@@ -41,13 +48,20 @@ import java.util.stream.Collectors;
 
 /**
  * Created by NatchaS on 7/11/16.
+ *TODO: cannot serialize cyclic reference of arrays and primitive objects. i.e B = [A,..] and A = [B,..]
  */
 public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
     private Set<Class<?>> adapterSet = new HashSet<>();
-    private static final String class_token = "__%class__";
-    private static final String primitive_token = "__%primobj__";
-    private static final String array_token = "__%array__";
-    private static final Set<Class<?>> primitiveWrappers = new HashSet<Class<?>>();
+    public static final String class_token = "__%class__";
+    public static final String primitive_token = "__%primobj__";
+    public static final String array_token = "__%array__";
+    private static final String ref_token = "__%ref__";
+    private static final String has_ref_token = "__%has_ref__";
+    public static final Set<Class<?>> primitiveWrappers = new HashSet<Class<?>>();
+
+    public ThreadLocal<GraphAdapterBuilder.Graph> referenceGraphThread;
+    public ThreadLocal<Set<String>> allClassNamesThread;
+
     static {
         primitiveWrappers.add(Integer.class);
         primitiveWrappers.add(Character.class);
@@ -60,7 +74,6 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
         primitiveWrappers.add(Float.class);
     }
 
-    static Set<Integer> cyclicDetect = new HashSet<>();
     public UniversalTypeAdapterFactory() {
     }
 
@@ -77,110 +90,249 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
 
         TypeAdapter<JsonElement> jsonElementAdapter = gson.getAdapter(JsonElement.class);
         TypeAdapterFactory thisTypeAdapterFactory = this;
-        TypeAdapter<T> result = new TypeAdapter<T>() {
-            @Override
-            public void write(JsonWriter out, T value) throws IOException {
-                if (value == null) {
-                    jsonElementAdapter.write(out, null);
-                }
-                else {
-                    TypeAdapter adapter = gson.getDelegateAdapter(thisTypeAdapterFactory, TypeToken.get(value.getClass()));
-                    System.out.println("value= " + value + " type=" + value.getClass());
-                    if (!primitiveWrappers.contains(value.getClass()) && !value.getClass().isArray() && !value.getClass().equals(String.class)){
-                        if (cyclicDetect.contains(System.identityHashCode(value))){
-                            System.out.println("CYCLE DETECTED IN");
-                            System.exit(1);
-                        } else cyclicDetect.add(System.identityHashCode(value));
-                    }
+        TypeAdapter<T> result = new UniversalTypeAdapter(gson, jsonElementAdapter, thisTypeAdapterFactory);
+        if (referenceGraphThread != null){
+            result = new UniversalTypeAdapter<T>(gson, jsonElementAdapter, thisTypeAdapterFactory, referenceGraphThread, allClassNamesThread);
+        }
+        if(allClassNamesThread != null){
+            ((UniversalTypeAdapter)result).allClassNameThread = allClassNamesThread;
+        }
+        return (TypeAdapter<T>) result;
+    }
+
+    public static class UniversalTypeAdapter<T> extends TypeAdapter<T>{
+        public Gson gson;
+        public TypeAdapter<JsonElement> jsonElementAdapter;
+        public TypeAdapterFactory thisTypeAdapterFactory;
+        public ThreadLocal<GraphAdapterBuilder.Graph> referenceGraphThread;
+        public ThreadLocal<Set<String>> allClassNameThread;
+
+        public UniversalTypeAdapter(Gson gson, TypeAdapter<JsonElement> jsonElementAdapter, TypeAdapterFactory thisTypeAdapterFactory,
+                                    ThreadLocal<GraphAdapterBuilder.Graph> referenceGraphThread, ThreadLocal<Set<String>> allClassNameThread){
+            this.allClassNameThread = allClassNameThread;
+            this.referenceGraphThread = referenceGraphThread;
+            this.gson = gson;
+            this.jsonElementAdapter = jsonElementAdapter;
+            this.thisTypeAdapterFactory = thisTypeAdapterFactory;
+        }
+
+        public UniversalTypeAdapter(Gson gson, TypeAdapter<JsonElement> jsonElementAdapter, TypeAdapterFactory thisTypeAdapterFactory){
+            this.gson = gson;
+            this.jsonElementAdapter = jsonElementAdapter;
+            this.thisTypeAdapterFactory = thisTypeAdapterFactory;
+        }
+
+        @Override
+        public void write(JsonWriter out, T value) throws IOException {
+            if (value == null) {
+                jsonElementAdapter.write(out, null);
+            }
+            else {
+                boolean hasReference = false;
+                TypeAdapter adapter = gson.getDelegateAdapter(thisTypeAdapterFactory, TypeToken.get(value.getClass()));
+
+                JsonElement o = null;
+                if (hasReference){
+                    o = new JsonObject();
+                    ((JsonObject)o).add(class_token, new JsonPrimitive(value.getClass().getName()));
+                    ((JsonObject)o).add(ref_token, new JsonPrimitive(System.identityHashCode(value)));
+                    ((JsonObject)o).add(has_ref_token, new JsonPrimitive(true));
+                } else {
                     JsonElement jsonElement = adapter.toJsonTree(value);
-                    JsonElement o = null;
                     if (jsonElement.isJsonPrimitive()) {
                         JsonObject jsonPrimitiveWrapper = new JsonObject();
                         jsonPrimitiveWrapper.add(primitive_token, jsonElement.getAsJsonPrimitive());
                         jsonPrimitiveWrapper.add(class_token, new JsonPrimitive(value.getClass().getName()));
+                        if (allClassNameThread != null) allClassNameThread.get().add(value.getClass().getName());
                         o = jsonPrimitiveWrapper;
 
                     } else if (jsonElement.isJsonObject()){
                         o = jsonElement.getAsJsonObject();
                         ((JsonObject)o).add(class_token, new JsonPrimitive(value.getClass().getName()));
+                        if (allClassNameThread != null) allClassNameThread.get().add(value.getClass().getName());
+//                            ((JsonObject)o).add(ref_token, new JsonPrimitive(System.identityHashCode(value)));
                     } else if (jsonElement.isJsonArray()){
                         JsonArray jsonArray = jsonElement.getAsJsonArray();
                         JsonObject arrayWrapper = new JsonObject();
                         arrayWrapper.add(array_token, jsonArray);
                         arrayWrapper.add(class_token, new JsonPrimitive(value.getClass().getName()));
+                        if (allClassNameThread != null)  allClassNameThread.get().add(value.getClass().getName());
                         o = arrayWrapper;
-
                     }
-                    jsonElementAdapter.write(out, o);
                 }
+                jsonElementAdapter.write(out, o);
             }
+        }
 
-            @Override
-            public T read(JsonReader jsonReader) throws IOException {
-                try {
-                    // treat null value case;
-                    if (jsonReader.peek() == JsonToken.NULL) {
-                        jsonReader.nextNull();
-                        return null;
-                    }
+        @Override
+        public T read(JsonReader jsonReader) throws IOException {
+            try {
+                // treat null value case;
+                if (jsonReader.peek() == JsonToken.NULL) {
+                    jsonReader.nextNull();
+                    return null;
+                }
 
-                    JsonElement je = jsonElementAdapter.read(jsonReader);
-//                    System.out.println(je.getClass().getSimpleName() + " " + je);
-                    if (je.isJsonNull()) {
-                        return null;
-                    } else if (je.isJsonObject()) {
-                        JsonObject o = je.getAsJsonObject();
+                JsonElement je = jsonElementAdapter.read(jsonReader);
+                if (je.isJsonNull()) {
+                    return null;
+                } else if (je.isJsonObject()) {
+                    JsonObject o = je.getAsJsonObject();
 
-                        String className = o.get(class_token).getAsString();
-                        Class clazz = Class.forName(className);
-                        TypeAdapter adapter = gson.getDelegateAdapter(thisTypeAdapterFactory, TypeToken.get(clazz));
-//                        System.out.println("Adapter: " + adapter.getClass());
-                        // parse wrapped primitive wrapper from jsonObject -> jsonPrimitive
-                        if (o.has(primitive_token)) {
-                            return (T) adapter.fromJsonTree(o.get(primitive_token));
-                        } else if (o.has(array_token) &&  Collection.class.isAssignableFrom(clazz)){
+                    String className = o.get(class_token).getAsString();
+                    Class clazz = Class.forName(className);
+                    TypeAdapter adapter = gson.getDelegateAdapter(thisTypeAdapterFactory, TypeToken.get(clazz));
 
-                            Collection genericCollection = (Collection) adapter.fromJsonTree(new JsonArray());
-                            JsonArray ja = o.get(array_token).getAsJsonArray();
+                    // parse wrapped primitive wrapper from jsonObject -> jsonPrimitive
+                    if (o.has(primitive_token)) {
+                        return (T) adapter.fromJsonTree(o.get(primitive_token));
+                    } else if (o.has(array_token) &&  Collection.class.isAssignableFrom(clazz)){
 
-                            for(int i = 0; i < ja.size(); i++){
-                                JsonElement je_i = ja.get(i);
-                                String className_i = je_i.getAsJsonObject().get(class_token).getAsString();
-                                Class clazz_i = Class.forName(className_i);
-                                genericCollection.add(gson.fromJson(je_i, clazz_i));
-                            }
+                        Collection genericCollection = (Collection) adapter.fromJsonTree(new JsonArray());
+                        JsonArray ja = o.get(array_token).getAsJsonArray();
 
-                            return (T)genericCollection;
-                        } else if (o.has(array_token) && Map.class.isAssignableFrom(clazz)){
-                            JsonArray ja = o.get(array_token).getAsJsonArray();
-                            Map genericMap =  (Map) adapter.fromJsonTree(new JsonArray());
-
-                            for(int i = 0; i < ja.size(); i++){
-                                JsonArray key_value_tuple = ja.get(i).getAsJsonArray();
-                                JsonObject key_obj = (JsonObject) key_value_tuple.get(0);
-                                JsonObject value_obj = (JsonObject) key_value_tuple.get(1);
-                                Object key_real_obj = gson.fromJson(key_obj, Class.forName(key_obj.get(class_token).getAsString()));
-                                Object value_real_obj = gson.fromJson(value_obj, Class.forName(value_obj.get(class_token).getAsString()));
-
-                                genericMap.put(key_real_obj, value_real_obj);
-
-                            }
-                            return (T)genericMap;
+                        for(int i = 0; i < ja.size(); i++){
+                            JsonElement je_i = ja.get(i);
+                            String className_i = je_i.getAsJsonObject().get(class_token).getAsString();
+                            Class clazz_i = Class.forName(className_i);
+                            genericCollection.add(gson.fromJson(je_i, clazz_i));
                         }
-                        return (T) adapter.fromJsonTree(o);
-                    } else {
-                        throw new IllegalArgumentException("JsonElement object must be either JsonObject or JsonNull, is currently "
-                                + je.getClass().getSimpleName() + " JsonElement -> " + je);
 
+                        return (T)genericCollection;
+                    } else if (o.has(array_token) && Map.class.isAssignableFrom(clazz)){
+                        JsonArray ja = o.get(array_token).getAsJsonArray();
+                        Map genericMap =  (Map) adapter.fromJsonTree(new JsonArray());
+
+                        for(int i = 0; i < ja.size(); i++){
+                            JsonArray key_value_tuple = ja.get(i).getAsJsonArray();
+                            JsonObject key_obj = (JsonObject) key_value_tuple.get(0);
+                            JsonObject value_obj = (JsonObject) key_value_tuple.get(1);
+                            Object key_real_obj = gson.fromJson(key_obj, Class.forName(key_obj.get(class_token).getAsString()));
+                            Object value_real_obj = gson.fromJson(value_obj, Class.forName(value_obj.get(class_token).getAsString()));
+
+                            genericMap.put(key_real_obj, value_real_obj);
+
+                        }
+                        return (T)genericMap;
                     }
+                    return (T) adapter.fromJsonTree(o);
+                } else {
+                    if (je.isJsonPrimitive() && GraphAdapterBuilder.Graph.isName(je.getAsString()) && referenceGraphThread != null){
+                        GraphAdapterBuilder.Graph referenceGraph = referenceGraphThread.get();
+                        GraphAdapterBuilder.Element<?> e = referenceGraph.map.get(je.getAsString());
+                        if (e == null){
+                            throw new NullPointerException("GraphAdapterBuilder.Element cannot be null");
+                        }
+                        if (e.value == null){
+                            if (e.typeAdapter == null){
+                                e.typeAdapter = (TypeAdapter)this;
+                            }
+                            e.read(referenceGraph);
+                        }
+                        return (T)e.value;
+                    }
+//                        throw new IllegalArgumentException("JsonElement object must be either JsonObject or JsonNull, is currently "
+//                                + je.getClass().getSimpleName() + " JsonElement -> " + je);
+
+                }
+            } catch (ClassNotFoundException e){
+                e.printStackTrace();
+            }
+            return null;
+        }
+    };
+
+    public static class DuplicateFieldNamingStrategy implements FieldNamingStrategy {
+        @Override
+        public String translateName(Field field){
+            Class<?> curClass = field.getDeclaringClass();
+            Class<?> parClass = curClass.getSuperclass();
+            if (parClass != null){
+                Set<String> superClassFields = new HashSet<>(
+                        (Collection) Arrays.asList(parClass.getDeclaredFields())
+                                .stream().map((Field f) -> f.getName()).collect(Collectors.toList())
+                );
+                Field[] superFields = parClass.getDeclaredFields();
+                for(int i = 0; i < superFields.length; ++i){
+                    if (superFields[i].getName().equals(field.getName())){
+                        return "dup$"+field.getName();
+                    }
+                }
+
+            }
+            return field.getName();
+        }
+    }
+
+    public static Gson buildGson() {
+        return buildGson(null, null);
+    }
+    public static Gson buildGson(Object obj){
+        return buildGson(obj, null);
+    }
+    public static Gson buildGsonWithKnownClasses(Set<String> trackedClasses){
+        return buildGson(null, trackedClasses);
+    }
+
+    /***
+     * Two cases:
+     * 1) obj is not null and trackedClasses empty -> serialize.
+     * 2) obj is null, trackedClasses already has clases -> deserialize.
+     */
+    public static Gson buildGson(Object obj, Set<String> trackedClasses){
+        Set<String> _class_set = new HashSet<>();
+
+        // Serialization Case: we want to obtain all Non-java classes and have them added to trackedClasses set.
+        int numberOfCyclicReferences = 0;
+        if (obj != null) {
+            ThreadLocal<Integer> numberOfCyclicReferencesWrapper = new ThreadLocal<>();
+            _class_set = ClassRetrievalAdapterFactory.getUniqueClassname(obj, numberOfCyclicReferencesWrapper);
+            numberOfCyclicReferences = numberOfCyclicReferencesWrapper.get();
+            if (trackedClasses!=null) trackedClasses.addAll(_class_set);
+        }
+        // Deserialization case: there's trackedClasses but object isn't passed/null.
+        // if object is null, we are in former case, but usually trackedClasses will be empty.
+        if (trackedClasses!=null){
+            _class_set = trackedClasses;
+        }
+
+        final Set<String> class_set = _class_set;
+
+        Function<Set<String>, GraphAdapterBuilder> gab_builder = (Set<String> class_set_) -> {
+            GraphAdapterBuilder gab = new GraphAdapterBuilder();
+            for(String class_name : class_set){
+                try {
+                    gab.addType(Class.forName(class_name));
                 } catch (ClassNotFoundException e){
                     e.printStackTrace();
                 }
-                return null;
             }
+            return gab;
         };
-        return (TypeAdapter<T>) result;
+
+        GsonBuilder gb = new GsonBuilder();
+        UniversalTypeAdapterFactory utaf = new UniversalTypeAdapterFactory();
+
+        if (!class_set.isEmpty() && numberOfCyclicReferences > 0){
+            System.out.println("using GraphBulder");
+            gab_builder.apply(class_set)
+                    .registerUniversalAdapter(utaf)
+                    .registerOn(gb);
+        }
+
+        FieldNamingStrategy exclusionStrategy = new UniversalTypeAdapterFactory.DuplicateFieldNamingStrategy();
+        gb.setFieldNamingStrategy(exclusionStrategy);
+        gb.registerTypeAdapterFactory(utaf);
+
+        Gson gson = gb
+                .serializeNulls()
+                .enableComplexMapKeySerialization()
+                .setPrettyPrinting()
+                .serializeSpecialFloatingPointValues()
+                .create();
+        return gson;
     }
+
 
     public static boolean isForeignClass(Class<?> clz){
         String packageName = clz.getPackage().getName();
@@ -215,7 +367,6 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
             if (isForeignClass(objectClass)){
                 objDependenciesSet.add(objectClass);
             }
-//            for(Field nextField : field.get)
         }
 
         return null;
@@ -248,14 +399,6 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
         return (T)o;
     }
     public static <T> T deserialize(String json, Class<T> oType, Gson gson) throws ClassNotFoundException{
-        if (gson == null){
-            GsonBuilder gb = new GsonBuilder();
-            gb.registerTypeAdapterFactory(new UniversalTypeAdapterFactory());
-            gson = gb
-                    .serializeNulls()
-                    .enableComplexMapKeySerialization()
-                    .create();
-        }
         if (oType.getName().equals("java.util.Arrays$ArrayList")){
             return (T)Arrays.asList(deserialize(json, ArrayList.class, gson).toArray());
         }
@@ -264,185 +407,4 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
         return o;
     }
 
-    /**
-     * Example/Test classes
-     * NOTE: nothing to do with Ponzu
-     *
-     * */
-
-    public static abstract class Tree implements Serializable {
-
-        public Tree L; public Tree R;
-        private static final long serialVersionUID = -6074996219705033171L;
-        public Tree(Tree L, Tree R){ this.L = L; this.R = R; }
-    }
-
-    public static interface SomeTree {
-        public void hi();
-    }
-
-    public static class BinTree extends Tree{
-        public int value;
-        public SomeTree st;
-        public BinTree(Tree L, int value, Tree R){ super(L, R); this.value = value; }
-        @Override public String toString() { return String.format("(%s L=%s R=%s)", value, L!=null ? L.toString() : null, R!= null ? R.toString() : null);}
-        @Override public boolean equals(Object o){
-            if (o instanceof BinTree){
-                BinTree bt = (BinTree)o;
-                return Arrays.asList(new Boolean[]{
-                        (this.L == bt.L || this.L.equals(bt.L)),
-                        (this.R == bt.R || R.equals(bt.R)),
-                        this.value == bt.value})
-                        .stream()
-                        .reduce((a, b) -> a && b).get();
-            }
-            return false;
-        }
-    }
-
-    public static class ScalaTree extends Tree {
-        public int[] values;
-        public ScalaTree(Tree L, int[] values, Tree R){ super(L, R); this.values = values; }
-
-        @Override public String toString() { return String.format("(%s L=%s R=%s)", Arrays.toString(values),  L!=null ? L.toString() : null, R!= null ? R.toString() : null);}
-        @Override public boolean equals(Object o){
-            if (o instanceof ScalaTree){
-                ScalaTree bt = (ScalaTree)o;
-                return Arrays.asList(new Boolean[]{
-                        (this.L == bt.L || this.L.equals(bt.L)),
-                        (this.R == bt.R || R.equals(bt.R)),
-                        Arrays.equals(this.values, bt.values)})
-                        .stream()
-                        .reduce((a, b) -> a && b).get();
-            }
-            return false;
-        }
-
-    }
-
-    public static class DeqNode {
-        public DeqNode next;
-        public DeqNode prev;
-        public Integer x;
-        public DeqNode(){}
-        public DeqNode(Integer x){this.x=x;}
-        public void add(Integer x){
-            this.next = new DeqNode(x);
-            this.next.prev = this;
-        }
-
-        @Override
-        public String toString(){
-            return String.format("[%s <- %s (%s) -> %s] <-> %s", System.identityHashCode(this.prev), System.identityHashCode(this),
-                    this.x, System.identityHashCode(this.next), this.next == null ? null : this.next.toString());
-        }
-    }
-
-    public static class Delt {
-        private Comparable[] A;
-        public Delt(Comparable[] A){
-            this.A = A;
-        }
-    }
-
-    public static void main(String[] args) throws Exception{
-        Tree l1 = new ScalaTree(null, new int[]{3,2,2}, null);
-        Tree l12 = new ScalaTree(null, new int[]{99, 199, 299}, null);
-        Tree l2 = new BinTree(null, 1337, null);
-        Tree l22 = new BinTree(null, 9, null);
-        Tree t = new BinTree(l2, 1, l22);
-        Tree t2 = l12;
-        t2.L = t; t2.R = l1;
-
-        GsonBuilder gb = new GsonBuilder();
-        gb.registerTypeAdapterFactory(new UniversalTypeAdapterFactory());
-        Gson gson = gb
-                .serializeNulls()
-                .enableComplexMapKeySerialization()
-                .setPrettyPrinting()
-//                .excludeFieldsWithModifiers(java.lang.reflect.Modifier.TRANSIENT)
-                .create();
-
-
-        String json = "";
-
-
-        Object[] Os = new Object[]{"x", 1, 'c'};
-        json = gson.toJson(Os);
-        Object[] _Os = (Object[])deserialize(json, Os.getClass(), gson);
-        System.out.println("Testing.. " + Arrays.asList(_Os));
-        assert(Arrays.asList(_Os).equals(Arrays.asList(Os)));
-
-        Object[][] Oss = new Object[][]{Os, Os};
-        json = gson.toJson(Oss);
-        List OssCheck = Arrays.asList(Oss).stream().map((Object[] __o) -> Arrays.asList(__o)).collect(Collectors.toList());
-        Object[][] _Oss = (Object[][]) deserialize(json, Oss.getClass(), gson);
-        List _OssCheck = Arrays.asList(_Oss).stream().map((Object[] __o) -> Arrays.asList(__o)).collect(Collectors.toList());
-        System.out.println("Testing.. " + _OssCheck);
-        assert(Arrays.asList(OssCheck).equals(Arrays.asList(_OssCheck)));
-
-        List<Object> ol = Arrays.asList(new Object[]{new Integer(2), new Character ('p')});
-        json = gson.toJson(ol);
-        List<Object> _ol = deserialize(json, ol.getClass(), gson);
-        System.out.println("Testing.." + _ol);
-        assert(ol.equals(_ol));
-
-//        DeqNode head = new DeqNode(1);
-//        head.add(2);
-//        System.out.println(head);
-//        json = gson.toJson(head);
-//        System.out.println(json);
-
-
-        /*
-        json = gson.toJson(t);
-        System.out.println(json);
-        Tree _t = gson.fromJson(json, t.getClass());
-        System.out.println(_t);
-
-        json = gson.toJson(t2);
-        System.out.println(json);
-        Tree _t2 = gson.fromJson(json, t2.getClass());
-        System.out.println(_t2);
-
-        List l = new ArrayList(Arrays.asList(new Integer[]{1,2}));
-//        List l = new LinkedList(Arrays.asList(new Integer[]{1,2}));
-        json = gson.toJson(l);
-        System.out.println(json);
-        List _l = gson.fromJson(json, l.getClass());
-        System.out.println(_l);
-
-        Set s = new HashSet(Arrays.asList(new Integer[]{1,2}));
-        json = gson.toJson(s);
-        System.out.println(json);
-        Set _s = gson.fromJson(json, s.getClass());
-        System.out.println(_s);
-
-        List<List> ll = new LinkedList(Arrays.asList(new Object[]{s, l}));
-        json = gson.toJson(ll);
-        System.out.println(json);
-        List<List> _ll = gson.fromJson(json, ll.getClass());
-        System.out.println(_ll);
-*/
-
-/*
-        Map m = new HashMap<String, Integer>();
-        m.put("a",1); m.put("b",2);
-//        json = gson.toJson(m);
-//        System.out.println(json);
-//        Map _m = gson.fromJson(json, m.getClass());
-//        System.out.println(_m);
-
-        List m2l = new ArrayList();
-        m2l.add(1);
-        Map m2 = new HashMap<String, Object>();
-        m2.put("a",m); m2.put("b",m2l);
-        json = gson.toJson(m2);
-        System.out.println(json);
-        Map _m2 = gson.fromJson(json, m2.getClass());
-        System.out.println(_m2);
-
-/*/
-
-    }
 }
