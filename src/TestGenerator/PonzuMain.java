@@ -315,6 +315,6 @@ public class PonzuMain {
                 System.out.println("\t" + sb.toString());
             }
         }
-
+        System.err.printf("[PONZU]: COMPLETED DESERIALIZATION TEST: %s\n", cacheImpl.size());
     }
 }

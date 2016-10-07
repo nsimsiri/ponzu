@@ -6,11 +6,11 @@ import TestGenerator.ArgumentCache.UniversalTypeAdapterFactory;
 import com.google.gson.FieldNamingStrategy;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import sun.tools.java.ClassNotFound;
 
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Parameter;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 
 import static TestGenerator.ArgumentCache.UniversalTypeAdapterFactory.buildGson;
 import static TestGenerator.ArgumentCache.UniversalTypeAdapterFactory.deserialize;
+import static TestGenerator.ArgumentCache.UniversalTypeAdapterFactory.deserializeObjectArray;
 
 /**
  * Created by NatchaS on 9/24/16.
@@ -39,7 +40,6 @@ public class UniversalTypeAdapterFactoryTest {
     static Tree t2 = l12;
     static {
         t2.L = t; t2.R = l1;
-
     }
 
     public static abstract class Tree implements Serializable {
@@ -344,15 +344,135 @@ public class UniversalTypeAdapterFactoryTest {
         System.out.println("Abstract Tree (BinTree, ScalaTree) passed.");
     }
 
+    public static void testSpecialDoubleValue() throws ClassNotFoundException{
+        String json = "";
+        List<Double> d = new ArrayList<>();
+        d.add(new Double(1.0));
+        d.add(Double.NaN);
+        d.add(Double.POSITIVE_INFINITY);
+        d.add(Double.NEGATIVE_INFINITY);
+
+        Gson gson = UniversalTypeAdapterFactory.buildGson(d);
+        json = gson.toJson(d);
+        List<Double> _d = deserialize(json, d.getClass(), gson);
+        assert(_d.equals(d));
+
+        Object[] A = new Object[]{new Double(1.0), new Character('c'), Double.NaN,  Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY};
+        gson = UniversalTypeAdapterFactory.buildGson(A);
+        json = gson.toJson(A);
+        Object[] _A = deserialize(json, A.getClass(), gson);
+        assert(Arrays.asList(_A).equals(Arrays.asList(A)));
+
+        Number[] B = new Number[]{new Double(1.0), new Integer(2), Double.NaN};
+        gson = UniversalTypeAdapterFactory.buildGson(B);
+        json = gson.toJson(B);
+        Number[] _B = (Number[])deserialize(json, B.getClass(), gson);
+        assert(Arrays.asList(_B).equals(Arrays.asList(B)));
+
+        Double[] C = new Double[]{new Double(1.0), Double.NaN,  Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY};
+        gson = UniversalTypeAdapterFactory.buildGson(C);
+        json = gson.toJson(C);
+        Object[] _C = deserialize(json, C.getClass(), gson);
+        assert(Arrays.asList(_C).equals(Arrays.asList(C)));
+        System.out.println("Special Double value [NaN, Infinity, -Infinity] passed");
+    }
+
+    public static void testDecimalFormat() {
+        String json = "";
+        DecimalFormat d = new DecimalFormat("[1\\s+]");
+        Gson gson = buildGson(d);
+        json = gson.toJson(d);
+        System.out.println(json);
+        DecimalFormat _df = gson.fromJson(json, d.getClass());
+    }
+
+    public static class DoubleNull {
+        public Double d;
+        public DoubleNull(Double d){ this.d = d;}
+        @Override public String toString() { return (d==null) ? null : d.toString(); }
+    }
+
+    public static void testDouble() throws Exception{
+        DoubleNull dn = new DoubleNull(new Double(1));
+        DoubleNull dd2 = new DoubleNull(null);
+        DoubleNull[] dd = new DoubleNull[]{dn, dd2};
+        Gson gson = buildGson(dd);
+        String json = gson.toJson(dd);
+        System.out.println(json);
+        DoubleNull[] _dd = UniversalTypeAdapterFactory.deserialize(json, dd.getClass(), gson);
+        System.out.println(Arrays.asList(_dd));
+    }
+
+    public static enum SomeEnum {
+        a,b,c;
+    }
+
+    public static class EnumWrapper {
+        public EnumWrapper next;
+        public SomeEnum v;
+        public EnumWrapper(SomeEnum se, EnumWrapper next){
+            this.v = se; this.next = next;
+        }
+        @Override
+        public String toString(){
+            Set<Integer> uniqueRef = new HashSet<>();
+            EnumWrapper cur = this;
+            String s = "";
+            while(!uniqueRef.contains(System.identityHashCode(cur))){
+                int cur_ref = System.identityHashCode(cur);
+                s += String.format("[%s %s]", cur_ref, cur.v);
+                uniqueRef.add(cur_ref);
+                if (cur.next == null) break;
+                cur = cur.next;
+            }
+            return s;
+        }
+    }
+
+    public static void enumTest() throws ClassNotFoundException{
+        System.out.printf("%s %s\n", System.identityHashCode(SomeEnum.a), System.identityHashCode(SomeEnum.a));
+        EnumWrapper ew = new EnumWrapper(SomeEnum.a, null);
+        EnumWrapper ew2 = new EnumWrapper(SomeEnum.a, ew);
+        ew.next = ew2;
+        Gson gson = buildGson(ew);
+        String json = gson.toJson(ew);
+        System.out.println(json);
+        EnumWrapper _ew = UniversalTypeAdapterFactory.deserialize(json, EnumWrapper.class, gson);
+        System.out.println(ew);
+
+    }
+
+    public static void NullArrayTest() throws ClassNotFoundException, InterruptedException{
+        Object[][] o = new Object[][]{new Object[]{}, new Object[]{}};
+        Gson gson = buildGson(o);
+        String json = gson.toJson(o);
+        Object[][] _o = UniversalTypeAdapterFactory.deserialize(json, o.getClass(), gson);
+
+        List<Object> l = new ArrayList();
+//        l.add(new double[][] {{}, {}});
+        l.add(new double[][] {{1.1}, {2.2}});
+
+        gson = buildGson(l);
+        json = gson.toJson(l);
+        System.out.println(json);
+        Thread.sleep(1000);
+        UniversalTypeAdapterFactory.deserialize(json, l.getClass(), gson);
+    }
+
     public static void main(String args[]){
         try {
-            testDuplicateFields();
-            testCyclicDeq();
-            testCyclicGraph();
-            testArbArray();
-            testTree();
-            testCollections();
-            testMap();
+//            testSpecialDoubleValue();
+//            testDuplicateFields();
+//            testCyclicDeq();
+//            testCyclicGraph();
+//            testArbArray();
+//            testTree();
+//            testCollections();
+//            testMap();
+//            testDecimalFormat();
+//            enumTest();
+//            testDouble();
+            NullArrayTest();
         } catch (Exception e){
             e.printStackTrace();
         }

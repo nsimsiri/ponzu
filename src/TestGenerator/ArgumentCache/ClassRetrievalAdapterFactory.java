@@ -55,7 +55,7 @@ public class ClassRetrievalAdapterFactory implements TypeAdapterFactory {
 
         @Override
         public void write(JsonWriter out, T value) throws IOException {
-
+            out.setLenient(true);
             Set<Integer> uniqueObjectSet = this.uniqueObjectSetThread.get();
             if (value == null){
                 jsonElementAdapter.write(out, null);
@@ -64,7 +64,10 @@ public class ClassRetrievalAdapterFactory implements TypeAdapterFactory {
                 TypeAdapter adapter = gson.getDelegateAdapter(thisTypeAdapterFactory, typeToken);
 
                 boolean isPrimitive = UniversalTypeAdapterFactory.primitiveWrappers.contains(value.getClass()) ||
-                        value.getClass().equals(String.class) || value.getClass().isArray();
+                                      value.getClass().equals(String.class) ||
+                                      value.getClass().isArray() ||
+                                      value.getClass().isEnum();
+
                 if (!isPrimitive) ClassRetrievalAdapter.addUniqueClass(this.uniqueClassSetThread, typeToken.getRawType());
                 if (!uniqueObjectSet.contains(System.identityHashCode(value))) {
                     if (!isPrimitive){
@@ -109,16 +112,20 @@ public class ClassRetrievalAdapterFactory implements TypeAdapterFactory {
     public static Set<String> getUniqueClassname(Object obj, ThreadLocal<Integer> numberOfCyclicReferencesThread){
         Set<String> uniqueClassSet = new HashSet<>();
         ClassRetrievalAdapterFactory classRetrievalAdapterFactory = new ClassRetrievalAdapterFactory(uniqueClassSet);
-        GsonBuilder gb = new GsonBuilder();
-        gb.setFieldNamingStrategy(new UniversalTypeAdapterFactory.DuplicateFieldNamingStrategy());
+        UniversalTypeAdapterFactory.SpecialDoubleAdapter doubleAdapter=
+                new UniversalTypeAdapterFactory.SpecialDoubleAdapter(new Gson().getAdapter(JsonElement.class));
+        GsonBuilder gb = new GsonBuilder()
+                .serializeNulls()
+                .enableComplexMapKeySerialization()
+                .serializeSpecialFloatingPointValues();
 
+        gb.setFieldNamingStrategy(new UniversalTypeAdapterFactory.DuplicateFieldNamingStrategy());
         gb.registerTypeAdapterFactory(classRetrievalAdapterFactory);
-        Gson gson = gb
-                    .serializeNulls()
-                    .enableComplexMapKeySerialization()
-                    .serializeSpecialFloatingPointValues()
-                    .create();
-        gson.toJson(obj);
+        gb.registerTypeAdapter(Double.class, doubleAdapter);
+        gb.registerTypeAdapter(double.class, doubleAdapter);
+
+        Gson gson = gb.create();
+        String json = gson.toJson(obj);
         if(numberOfCyclicReferencesThread != null)
             numberOfCyclicReferencesThread.set(classRetrievalAdapterFactory.numberOfCyclicReferencesThread.get());
         Set<String> filteredUniqueClassSet = new HashSet<>();
@@ -135,7 +142,4 @@ public class ClassRetrievalAdapterFactory implements TypeAdapterFactory {
         return filteredUniqueClassSet;
     }
 
-    public static void main(String[] args){
-
-    }
 }

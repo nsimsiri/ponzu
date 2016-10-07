@@ -30,7 +30,8 @@ public class ArgumentObjectInfo implements Serializable {
     public String serializedObject;
     public String class_string;
     public String paramType_string;
-    public Set<String> tracked_classnames;
+    public HashSet<String> tracked_classnames;
+    public Integer objCyclicReferenceCount;
 
     public ArgumentObjectInfo(){}
     public ArgumentObjectInfo(Object object_, Class class_, Class paramType, String serializedObject) {
@@ -51,33 +52,29 @@ public class ArgumentObjectInfo implements Serializable {
         this.paramType = paramType;
     }
     private void writeObject(ObjectOutputStream out) throws IOException {
-        /*
-        GsonBuilder gsonBuilder = new GsonBuilder();
-        gsonBuilder.registerTypeAdapterFactory(new UniversalTypeAdapterFactory());
-        Gson gson = gsonBuilder
-                .serializeNulls()
-                .enableComplexMapKeySerialization()
-                .create();
-        */
-
         this.serializedObject = "";
         this.tracked_classnames = new HashSet<>();
+        ThreadLocal<Integer> referenceCountWrapper = new ThreadLocal<>();
+        referenceCountWrapper.set(new Integer(0));
 
         if (this.object_ != null){
-            Gson gson = UniversalTypeAdapterFactory.buildGson(this.object_, this.tracked_classnames);
+            Gson gson = UniversalTypeAdapterFactory.buildGson(this.object_, this.tracked_classnames, referenceCountWrapper);
             this.serializedObject = gson.toJson(this.object_);
+            this.objCyclicReferenceCount = referenceCountWrapper.get();
         }
 
         this.class_string = this.class_ == null ? "null" : this.class_.getName() ;
         this.paramType_string = this.paramType == null ? "null" : this.paramType.getName();
 
+        out.writeObject(this.objCyclicReferenceCount);
         out.writeObject(this.tracked_classnames);
         out.writeObject(this.serializedObject);
         out.writeObject(this.class_string);
         out.writeObject(this.paramType_string);
     }
 
-    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException{
+    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        this.objCyclicReferenceCount = (Integer) in.readObject();
         this.tracked_classnames = (HashSet<String>) in.readObject();
         this.serializedObject = (String)in.readObject();
         this.class_string = (String)in.readObject();
@@ -87,16 +84,9 @@ public class ArgumentObjectInfo implements Serializable {
         this.object_ = null;
 
         try {
-            /*
-            GsonBuilder gsonBuilder = new GsonBuilder();
-            gsonBuilder.registerTypeAdapterFactory(new UniversalTypeAdapterFactory());
-            Gson gson = gsonBuilder
-                    .serializeNulls()
-                    .enableComplexMapKeySerialization()
-                    .serializeSpecialFloatingPointValues()
-                    .create();
-                    */
-            Gson gson = UniversalTypeAdapterFactory.buildGson();
+            ThreadLocal<Integer> referenceCountWrapper = new ThreadLocal<>();
+            referenceCountWrapper.set(this.objCyclicReferenceCount);
+            Gson gson = UniversalTypeAdapterFactory.buildGsonWithKnownClasses(this.tracked_classnames, this.objCyclicReferenceCount);
             if (this.class_!=null){
                 this.object_ = UniversalTypeAdapterFactory.deserialize(serializedObject, this.class_, gson);
             }
@@ -104,6 +94,7 @@ public class ArgumentObjectInfo implements Serializable {
             System.err.format("[PONZU Exception]: ! unable to deserialize object of type [%s] for signature [%s] for the following object:\n" +
                     "--------\n %s\n--------\n", this.class_, this.paramType, serializedObject);
             e.printStackTrace();
+            this.object_ = null;
         }
     }
 

@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
 /**
  * Created by NatchaS on 7/11/16.
  *TODO: cannot serialize cyclic reference of arrays and primitive objects. i.e B = [A,..] and A = [B,..]
+ *TODO: cannot serialize complex enum type with cyclic references.
  */
 public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
     private Set<Class<?>> adapterSet = new HashSet<>();
@@ -124,13 +125,14 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
 
         @Override
         public void write(JsonWriter out, T value) throws IOException {
+
             if (value == null) {
                 jsonElementAdapter.write(out, null);
             }
             else {
                 boolean hasReference = false;
                 TypeAdapter adapter = gson.getDelegateAdapter(thisTypeAdapterFactory, TypeToken.get(value.getClass()));
-
+//                System.out.printf("<%s>\n[%s] %s\n", adapter, (value == null) ? null : value.getClass(), Arrays.asList(value));
                 JsonElement o = null;
                 if (hasReference){
                     o = new JsonObject();
@@ -138,6 +140,7 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                     ((JsonObject)o).add(ref_token, new JsonPrimitive(System.identityHashCode(value)));
                     ((JsonObject)o).add(has_ref_token, new JsonPrimitive(true));
                 } else {
+                    out.setLenient(true);
                     JsonElement jsonElement = adapter.toJsonTree(value);
                     if (jsonElement.isJsonPrimitive()) {
                         JsonObject jsonPrimitiveWrapper = new JsonObject();
@@ -151,6 +154,7 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                         ((JsonObject)o).add(class_token, new JsonPrimitive(value.getClass().getName()));
                         if (allClassNameThread != null) allClassNameThread.get().add(value.getClass().getName());
 //                            ((JsonObject)o).add(ref_token, new JsonPrimitive(System.identityHashCode(value)));
+
                     } else if (jsonElement.isJsonArray()){
                         JsonArray jsonArray = jsonElement.getAsJsonArray();
                         JsonObject arrayWrapper = new JsonObject();
@@ -183,8 +187,14 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                     Class clazz = Class.forName(className);
                     TypeAdapter adapter = gson.getDelegateAdapter(thisTypeAdapterFactory, TypeToken.get(clazz));
 
+
                     // parse wrapped primitive wrapper from jsonObject -> jsonPrimitive
+
                     if (o.has(primitive_token)) {
+                        if (clazz.equals(Double.class) || clazz.equals(double.class)){
+                            adapter = gson.getAdapter(clazz);
+                        }
+
                         return (T) adapter.fromJsonTree(o.get(primitive_token));
                     } else if (o.has(array_token) &&  Collection.class.isAssignableFrom(clazz)){
 
@@ -231,8 +241,6 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                         }
                         return (T)e.value;
                     }
-//                        throw new IllegalArgumentException("JsonElement object must be either JsonObject or JsonNull, is currently "
-//                                + je.getClass().getSimpleName() + " JsonElement -> " + je);
 
                 }
             } catch (ClassNotFoundException e){
@@ -242,6 +250,37 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
         }
     };
 
+    public static class SpecialDoubleAdapter extends TypeAdapter<Double> {
+        TypeAdapter<JsonElement> jsonElementAdapter;
+        public SpecialDoubleAdapter(TypeAdapter<JsonElement> jsonElementAdapter){
+            this.jsonElementAdapter = jsonElementAdapter;
+        }
+        @Override public void write(JsonWriter out, Double value) throws IOException {
+            out.setLenient(true);
+            String doubleClassName = (value == null) ? double.class.getName() : value.getClass().getName();
+            JsonElement je = (value == null) ? null : new JsonPrimitive(value);
+            JsonObject jo = new JsonObject();
+            jo.add(class_token, new JsonPrimitive(doubleClassName));
+            jo.add(primitive_token, je);
+            jsonElementAdapter.write(out, jo);
+
+        }
+        @Override public Double read(JsonReader in) throws IOException {
+            JsonElement jsonElement = this.jsonElementAdapter.read(in);
+            if (jsonElement.isJsonPrimitive()){
+                return jsonElement.getAsDouble();
+            } else if (jsonElement.isJsonObject()){
+                JsonObject doubleWrapper = jsonElement.getAsJsonObject();
+                if (doubleWrapper.get(primitive_token).isJsonNull()) return null;
+                return Double.parseDouble(doubleWrapper.get(primitive_token).getAsString());
+            }
+            throw new IllegalStateException("Expected JsonPrimitive or JsonObject, but it is a " + jsonElement.getClass().getSimpleName());
+        }
+    }
+
+    /**
+     * TODO: Allow overriding same name more than TWICE.
+     * */
     public static class DuplicateFieldNamingStrategy implements FieldNamingStrategy {
         @Override
         public String translateName(Field field){
@@ -264,14 +303,20 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
         }
     }
 
+
     public static Gson buildGson() {
         return buildGson(null, null);
     }
     public static Gson buildGson(Object obj){
         return buildGson(obj, null);
     }
-    public static Gson buildGsonWithKnownClasses(Set<String> trackedClasses){
-        return buildGson(null, trackedClasses);
+    public static Gson buildGsonWithKnownClasses(Set<String> trackedClasses, Integer numberCyclicOfReferences){
+        ThreadLocal<Integer> numberOfCyclicReferencesWrapper = new ThreadLocal<>();
+        numberOfCyclicReferencesWrapper.set(numberCyclicOfReferences);
+        return buildGson(null, trackedClasses, numberOfCyclicReferencesWrapper);
+    }
+    public static Gson buildGson(Object obj, Set<String> trackedClasses){
+        return buildGson(obj, trackedClasses, null);
     }
 
     /***
@@ -279,15 +324,15 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
      * 1) obj is not null and trackedClasses empty -> serialize.
      * 2) obj is null, trackedClasses already has clases -> deserialize.
      */
-    public static Gson buildGson(Object obj, Set<String> trackedClasses){
+    public static Gson buildGson(Object obj, Set<String> trackedClasses, ThreadLocal<Integer> numberOfCyclicReferencesWrapper){
+        if (numberOfCyclicReferencesWrapper == null){
+            numberOfCyclicReferencesWrapper = new ThreadLocal<Integer>();
+            numberOfCyclicReferencesWrapper.set(0);
+        }
         Set<String> _class_set = new HashSet<>();
-
         // Serialization Case: we want to obtain all Non-java classes and have them added to trackedClasses set.
-        int numberOfCyclicReferences = 0;
         if (obj != null) {
-            ThreadLocal<Integer> numberOfCyclicReferencesWrapper = new ThreadLocal<>();
             _class_set = ClassRetrievalAdapterFactory.getUniqueClassname(obj, numberOfCyclicReferencesWrapper);
-            numberOfCyclicReferences = numberOfCyclicReferencesWrapper.get();
             if (trackedClasses!=null) trackedClasses.addAll(_class_set);
         }
         // Deserialization case: there's trackedClasses but object isn't passed/null.
@@ -313,16 +358,18 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
         GsonBuilder gb = new GsonBuilder();
         UniversalTypeAdapterFactory utaf = new UniversalTypeAdapterFactory();
 
-        if (!class_set.isEmpty() && numberOfCyclicReferences > 0){
-            System.out.println("using GraphBulder");
+        if (!class_set.isEmpty() && numberOfCyclicReferencesWrapper.get() > 0){
             gab_builder.apply(class_set)
                     .registerUniversalAdapter(utaf)
                     .registerOn(gb);
         }
 
         FieldNamingStrategy exclusionStrategy = new UniversalTypeAdapterFactory.DuplicateFieldNamingStrategy();
+        SpecialDoubleAdapter doubleAdapter = new SpecialDoubleAdapter(new Gson().getAdapter(JsonElement.class));
         gb.setFieldNamingStrategy(exclusionStrategy);
         gb.registerTypeAdapterFactory(utaf);
+        gb.registerTypeAdapter(Double.class, doubleAdapter);
+        gb.registerTypeAdapter(double.class, doubleAdapter);
 
         Gson gson = gb
                 .serializeNulls()
@@ -368,27 +415,23 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                 objDependenciesSet.add(objectClass);
             }
         }
-
         return null;
     }
 
     public static <T> Object deserializeObjectArray(Object o, Class<T> o_class, Gson gson) throws ClassNotFoundException{
-
         Function<Object, Boolean> isObjectArray = (Object obj) -> {
             return obj.getClass().isArray() && obj.getClass().getName().contains(Object[].class.getName());
-        } ;
+        };
 
         if (isObjectArray.apply(o)){
             Object[] _o = (Object[]) o;
             for(int i = 0; i < _o.length; i++){
-
                 if (_o[i].getClass().equals(LinkedTreeMap.class) && ((LinkedTreeMap)_o[i]).containsKey(class_token)){
                     LinkedTreeMap ltm = (LinkedTreeMap)_o[i];
                     Class<?> ltm_class = Class.forName((String)ltm.get(class_token));
                     Gson gson2 = new Gson();
                     JsonObject jo = gson2.toJsonTree(ltm).getAsJsonObject();
                     Object ltm_o = gson.fromJson(jo, ltm_class);
-
                     _o[i] = ltm_o;
                 } else if (isObjectArray.apply(_o[i])){
                     _o[i] = deserializeObjectArray(_o[i], o_class, gson);
