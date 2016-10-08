@@ -56,8 +56,7 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
     public static final String class_token = "__%class__";
     public static final String primitive_token = "__%primobj__";
     public static final String array_token = "__%array__";
-    private static final String ref_token = "__%ref__";
-    private static final String has_ref_token = "__%has_ref__";
+    public static final String array_type = "__%array-type__";
     public static final Set<Class<?>> primitiveWrappers = new HashSet<Class<?>>();
 
     public ThreadLocal<GraphAdapterBuilder.Graph> referenceGraphThread;
@@ -125,45 +124,40 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
 
         @Override
         public void write(JsonWriter out, T value) throws IOException {
-
             if (value == null) {
                 jsonElementAdapter.write(out, null);
             }
             else {
-                boolean hasReference = false;
                 TypeAdapter adapter = gson.getDelegateAdapter(thisTypeAdapterFactory, TypeToken.get(value.getClass()));
-//                System.out.printf("<%s>\n[%s] %s\n", adapter, (value == null) ? null : value.getClass(), Arrays.asList(value));
                 JsonElement o = null;
-                if (hasReference){
-                    o = new JsonObject();
+                out.setLenient(true); // Flag set to ensure special double valeus for doubles are srialized.
+//                System.out.printf("<%s>: %s\n%s\n", this.getClass().getSimpleName(), value.getClass().getSimpleName(), value);
+                JsonElement jsonElement = adapter.toJsonTree(value);
+                if (jsonElement.isJsonPrimitive()) {
+                    JsonObject jsonPrimitiveWrapper = new JsonObject();
+                    jsonPrimitiveWrapper.add(primitive_token, jsonElement.getAsJsonPrimitive());
+                    jsonPrimitiveWrapper.add(class_token, new JsonPrimitive(value.getClass().getName()));
+                    if (allClassNameThread != null) allClassNameThread.get().add(value.getClass().getName());
+                    o = jsonPrimitiveWrapper;
+
+                } else if (jsonElement.isJsonObject()){
+                    o = jsonElement.getAsJsonObject();
                     ((JsonObject)o).add(class_token, new JsonPrimitive(value.getClass().getName()));
-                    ((JsonObject)o).add(ref_token, new JsonPrimitive(System.identityHashCode(value)));
-                    ((JsonObject)o).add(has_ref_token, new JsonPrimitive(true));
-                } else {
-                    out.setLenient(true);
-                    JsonElement jsonElement = adapter.toJsonTree(value);
-                    if (jsonElement.isJsonPrimitive()) {
-                        JsonObject jsonPrimitiveWrapper = new JsonObject();
-                        jsonPrimitiveWrapper.add(primitive_token, jsonElement.getAsJsonPrimitive());
-                        jsonPrimitiveWrapper.add(class_token, new JsonPrimitive(value.getClass().getName()));
-                        if (allClassNameThread != null) allClassNameThread.get().add(value.getClass().getName());
-                        o = jsonPrimitiveWrapper;
+                    if (allClassNameThread != null) allClassNameThread.get().add(value.getClass().getName());
 
-                    } else if (jsonElement.isJsonObject()){
-                        o = jsonElement.getAsJsonObject();
-                        ((JsonObject)o).add(class_token, new JsonPrimitive(value.getClass().getName()));
-                        if (allClassNameThread != null) allClassNameThread.get().add(value.getClass().getName());
-//                            ((JsonObject)o).add(ref_token, new JsonPrimitive(System.identityHashCode(value)));
-
-                    } else if (jsonElement.isJsonArray()){
-                        JsonArray jsonArray = jsonElement.getAsJsonArray();
-                        JsonObject arrayWrapper = new JsonObject();
-                        arrayWrapper.add(array_token, jsonArray);
-                        arrayWrapper.add(class_token, new JsonPrimitive(value.getClass().getName()));
-                        if (allClassNameThread != null)  allClassNameThread.get().add(value.getClass().getName());
-                        o = arrayWrapper;
-                    }
                 }
+                else if (jsonElement.isJsonArray()){
+                    JsonArray jsonArray = jsonElement.getAsJsonArray();
+                    JsonObject arrayWrapper = new JsonObject();
+                    arrayWrapper.add(array_token, jsonArray);
+                    arrayWrapper.add(class_token, new JsonPrimitive(value.getClass().getName()));
+                    if (allClassNameThread != null)  allClassNameThread.get().add(value.getClass().getName());
+                    o = arrayWrapper;
+                }
+                else {
+                    throw new IllegalStateException("[UniversalTypeAdapterFactory.write] cannot serialize " + jsonElement.getClass());
+                }
+//
                 jsonElementAdapter.write(out, o);
             }
         }
@@ -186,30 +180,37 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                     String className = o.get(class_token).getAsString();
                     Class clazz = Class.forName(className);
                     TypeAdapter adapter = gson.getDelegateAdapter(thisTypeAdapterFactory, TypeToken.get(clazz));
-
-
                     // parse wrapped primitive wrapper from jsonObject -> jsonPrimitive
 
                     if (o.has(primitive_token)) {
                         if (clazz.equals(Double.class) || clazz.equals(double.class)){
                             adapter = gson.getAdapter(clazz);
                         }
-
                         return (T) adapter.fromJsonTree(o.get(primitive_token));
                     } else if (o.has(array_token) &&  Collection.class.isAssignableFrom(clazz)){
-
+                        // CASE COLLECTION TYPE
                         Collection genericCollection = (Collection) adapter.fromJsonTree(new JsonArray());
                         JsonArray ja = o.get(array_token).getAsJsonArray();
-
                         for(int i = 0; i < ja.size(); i++){
                             JsonElement je_i = ja.get(i);
-                            String className_i = je_i.getAsJsonObject().get(class_token).getAsString();
-                            Class clazz_i = Class.forName(className_i);
-                            genericCollection.add(gson.fromJson(je_i, clazz_i));
-                        }
+                            Class clazz_i = null;
 
+                            // parse class of JsonElement
+                            if (je_i.isJsonObject()){
+                                String className_i = je_i.getAsJsonObject().get(class_token).getAsString();
+                                clazz_i = Class.forName(className_i);
+                            } else if(je_i.isJsonArray()){
+                                System.out.println("xxx "  +je_i);
+                                clazz_i = Object[].class;
+                            } else
+                                throw new IllegalStateException("[UniversalTypeAdapterFactory Collection conversion: not JsonArray or JsonObject]");
+
+                            Object elementObject = UniversalTypeAdapterFactory.deserialize(je_i, clazz_i, gson);
+                            genericCollection.add(elementObject);
+                        }
                         return (T)genericCollection;
                     } else if (o.has(array_token) && Map.class.isAssignableFrom(clazz)){
+                        // CASE MAP TYPE
                         JsonArray ja = o.get(array_token).getAsJsonArray();
                         Map genericMap =  (Map) adapter.fromJsonTree(new JsonArray());
 
@@ -225,6 +226,7 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                         }
                         return (T)genericMap;
                     }
+                    o.remove(class_token);
                     return (T) adapter.fromJsonTree(o);
                 } else {
                     if (je.isJsonPrimitive() && GraphAdapterBuilder.Graph.isName(je.getAsString()) && referenceGraphThread != null){
@@ -367,10 +369,13 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
         FieldNamingStrategy exclusionStrategy = new UniversalTypeAdapterFactory.DuplicateFieldNamingStrategy();
         SpecialDoubleAdapter doubleAdapter = new SpecialDoubleAdapter(new Gson().getAdapter(JsonElement.class));
         gb.setFieldNamingStrategy(exclusionStrategy);
+
+        // IMPORTANT *** REGISTER CUSTOM ADAPTERS
         gb.registerTypeAdapterFactory(utaf);
+        gb.registerTypeAdapterFactory(UniversalArrayTypeAdapter.FACTORY);
+        gb.registerTypeAdapterFactory(new UniversalCollectionTypeAdapterFactory());
         gb.registerTypeAdapter(Double.class, doubleAdapter);
         gb.registerTypeAdapter(double.class, doubleAdapter);
-
         Gson gson = gb
                 .serializeNulls()
                 .enableComplexMapKeySerialization()
@@ -446,6 +451,15 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
             return (T)Arrays.asList(deserialize(json, ArrayList.class, gson).toArray());
         }
         T o = gson.fromJson(json, oType);
+        o = (T)deserializeObjectArray(o, o.getClass(), gson);
+        return o;
+    }
+
+    public static <T> T deserialize(JsonElement jsonElement, Class<T> oType, Gson gson) throws ClassNotFoundException {
+        if (oType.getName().equals("java.util.Arrays$ArrayList")){
+            return (T)Arrays.asList(deserialize(jsonElement, ArrayList.class, gson).toArray());
+        }
+        T o = gson.fromJson(jsonElement, oType);
         o = (T)deserializeObjectArray(o, o.getClass(), gson);
         return o;
     }

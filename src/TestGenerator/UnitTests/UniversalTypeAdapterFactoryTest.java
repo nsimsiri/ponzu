@@ -13,7 +13,9 @@ import java.lang.reflect.Parameter;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collection;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.StringTokenizer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -327,6 +330,7 @@ public class UniversalTypeAdapterFactoryTest {
         m2.put("a",m); m2.put("b",m2l);
         gson = UniversalTypeAdapterFactory.buildGson(m2);
         json = gson.toJson(m2);
+
         Map _m2 = gson.fromJson(json, m2.getClass());
         assert(m2.equals(_m2));
         System.out.println("HashMap<String, Object> passed. (Object includes Map and Collection)");
@@ -382,7 +386,6 @@ public class UniversalTypeAdapterFactoryTest {
         DecimalFormat d = new DecimalFormat("[1\\s+]");
         Gson gson = buildGson(d);
         json = gson.toJson(d);
-        System.out.println(json);
         DecimalFormat _df = gson.fromJson(json, d.getClass());
     }
 
@@ -398,9 +401,7 @@ public class UniversalTypeAdapterFactoryTest {
         DoubleNull[] dd = new DoubleNull[]{dn, dd2};
         Gson gson = buildGson(dd);
         String json = gson.toJson(dd);
-        System.out.println(json);
         DoubleNull[] _dd = UniversalTypeAdapterFactory.deserialize(json, dd.getClass(), gson);
-        System.out.println(Arrays.asList(_dd));
     }
 
     public static enum SomeEnum {
@@ -436,27 +437,77 @@ public class UniversalTypeAdapterFactoryTest {
         ew.next = ew2;
         Gson gson = buildGson(ew);
         String json = gson.toJson(ew);
-        System.out.println(json);
         EnumWrapper _ew = UniversalTypeAdapterFactory.deserialize(json, EnumWrapper.class, gson);
-        System.out.println(ew);
+        System.out.println("enum passed");
 
     }
 
-    public static void NullArrayTest() throws ClassNotFoundException, InterruptedException{
-        Object[][] o = new Object[][]{new Object[]{}, new Object[]{}};
-        Gson gson = buildGson(o);
-        String json = gson.toJson(o);
+    public static class TwoDWrap {
+        public Object[][] o = new Object[][]{{1.0},{2}};
+        @Override public String toString(){
+            String s = "";
+            for(int i = 0; i < o.length; i++){
+                s += String.format("%s ", Arrays.asList(o[i]));
+            }
+            return "{ " + s + " }";
+        }
+    }
+
+    public static void NestedCollectionObjectArrayTest() throws ClassNotFoundException, InterruptedException{
+
+        Gson gson = null;
+        String json = "";
+        Object[][] o = new Object[][]{new Double[]{1.1, 1.2}, new Double[]{}};
+        gson = buildGson(o);
+        json = gson.toJson(o);
         Object[][] _o = UniversalTypeAdapterFactory.deserialize(json, o.getClass(), gson);
+        gson = buildGson(_o);
+        String json2 = gson.toJson(_o);
+        assert(json2.equals(json));
+
+
+        TwoDWrap x = new TwoDWrap();
+        gson = buildGson(x);
+        json = gson.toJson(x);
+
+        TwoDWrap _x = gson.fromJson(json, x.getClass());
+        assert(_x.toString().equals(x.toString()));
 
         List<Object> l = new ArrayList();
-//        l.add(new double[][] {{}, {}});
+        l.add(new double[][] {{}, {}});
         l.add(new double[][] {{1.1}, {2.2}});
-
+        l.add(new Object[] {'c', 1});
         gson = buildGson(l);
         json = gson.toJson(l);
-        System.out.println(json);
-        Thread.sleep(1000);
-        UniversalTypeAdapterFactory.deserialize(json, l.getClass(), gson);
+
+        List<Object> _l  = UniversalTypeAdapterFactory.deserialize(json, l.getClass(), gson);
+        gson = buildGson(_l);
+        String testJson = gson.toJson(_l);
+        assert(testJson.equals(json));
+
+        System.out.println("Nested Collection/obj with Array passed");
+    }
+
+    public static void StringBuilderTest() throws ClassNotFoundException, InterruptedException{
+        StringBuilder sb = new StringBuilder();
+        sb.append("hello world");
+        sb.append("- kappa Pride");
+        Gson gson = null;
+        String json = "";
+        gson = buildGson(sb);
+        json = gson.toJson(sb);
+        StringBuilder _sb = gson.fromJson(json, StringBuilder.class);
+        _sb.append("what");
+        System.out.println("StringBuilder test passed");
+    }
+
+
+    public static void GregorianCalendarTest() {
+        Calendar cal = Calendar.getInstance();
+        Gson gson = buildGson(cal);
+        String json = gson.toJson(cal);
+        Calendar _cal = gson.fromJson(json, cal.getClass());
+        assert(cal.getTime().toString().equals(_cal.getTime().toString()));
     }
 
     public static void main(String args[]){
@@ -468,11 +519,14 @@ public class UniversalTypeAdapterFactoryTest {
 //            testArbArray();
 //            testTree();
 //            testCollections();
-//            testMap();
+            testMap();
 //            testDecimalFormat();
 //            enumTest();
 //            testDouble();
-            NullArrayTest();
+//            NestedCollectionObjectArrayTest();
+//            StringBuilderTest();
+//            GregorianCalendarTest();
+
         } catch (Exception e){
             e.printStackTrace();
         }
