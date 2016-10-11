@@ -137,26 +137,6 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
 
                 if (jsonElement.isJsonPrimitive()) {
                     JsonPrimitive jsonPrimitive = jsonElement.getAsJsonPrimitive();
-
-                    /*
-                    boolean isGraphAdapterNode = jsonPrimitive.isString() && adapter.getClass().equals(GraphAdapterBuilder.Adapter.class)
-                            && GraphAdapterBuilder.Graph.isName(jsonPrimitive.getAsString()) && !clazz.equals(String.class);
-
-                    if (isGraphAdapterNode) {
-                        //jsonPrimitive is a cyclic reference id, i.e "0x1", "0x2" marker for GraphAdapterBuilder.
-                        GraphAdapterBuilder.Graph referenceGraph = this.referenceGraphThread.get();
-                        System.out.println(referenceGraph.map);
-                        System.out.printf("\n%s", referenceGraph.map.get(value).value);
-                        System.exit(1);
-//                        GraphAdapterBuilder.Element valueElement = referenceGraph.map.get(jsonPrimitive.getAsString());
-//                        System.out.println(valueElement.element);
-                        o = jsonPrimitive;
-                    } else {
-                        // jsonPrimitive is actually a primitive type.
-
-                    }
-                    */
-
                     JsonObject jsonPrimitiveWrapper = new JsonObject();
                     jsonPrimitiveWrapper.add(primitive_token, jsonPrimitive);
                     jsonPrimitiveWrapper.add(class_token, new JsonPrimitive(value.getClass().getName()));
@@ -208,7 +188,6 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                         if (clazz.equals(Double.class) || clazz.equals(double.class)){
                             adapter = gson.getAdapter(clazz);
                         }
-                        System.out.printf("\n000000 Graph passing 00000\n%s\n%s\n\n", o, adapter);
                         return (T) adapter.fromJsonTree(o.get(primitive_token));
                     } else if (o.has(array_token) &&  Collection.class.isAssignableFrom(clazz)){
                         // CASE COLLECTION TYPE
@@ -251,27 +230,7 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                     o.remove(class_token);
                     return (T) adapter.fromJsonTree(o);
                 } else {
-                    throw new IllegalStateException("YEAH HELLO");
-//                    if (je.isJsonPrimitive() && GraphAdapterBuilder.Graph.isName(je.getAsString()) && referenceGraphThread != null){
-//                        GraphAdapterBuilder.Graph referenceGraph = referenceGraphThread.get();
-//                        GraphAdapterBuilder.Element<?> e = referenceGraph.map.get(je.getAsString());
-//
-//                        if (e == null){
-//                            throw new NullPointerException("GraphAdapterBuilder.Element cannot be null");
-//                        }
-//                        if (e.value == null){
-//                            System.out.printf("=========================\n%s\n%s\n==================", e.typeAdapter, e.element);
-//                            if (e.typeAdapter == null){
-//                                e.typeAdapter = (TypeAdapter)this;
-//                            }
-////                            System.out.println("reading refGraph with " + e.typeAdapter);
-//                            e.read(referenceGraph);
-//                        }
-////                        System.out.println("-----restoring cyclic: " + e.value);
-//                        System.out.println("WHAT?? " + je);
-//                        System.out.println("--"+ e.value.getClass());
-//                        return (T)e.value;
-//                    }
+                    throw new IllegalStateException("[UniversalAdapterFactory] either JsonObject || JsonNull, it's " + je.getClass().getSimpleName());
                 }
             } catch (ClassNotFoundException e){
                 e.printStackTrace();

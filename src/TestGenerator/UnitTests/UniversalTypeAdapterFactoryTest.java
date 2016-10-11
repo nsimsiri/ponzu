@@ -529,11 +529,16 @@ public class UniversalTypeAdapterFactoryTest {
         d.next.next = d;
         Gson gson = buildGson(d);
         String json = gson.toJson(d);
-        System.out.println(json);
+//        System.out.println(json);
         DecFormWrap _d = gson.fromJson(json, d.getClass());
         assert(_d.d.equals(d.d));
         assert(d.next.next.equals(d));
         assert(d.next.d.equals(d.d));
+        System.out.println("Cycle on decimal format passed");
+    }
+
+    public static void ClassRetrievalTest(){
+
     }
 
     public static void main(String args[]){

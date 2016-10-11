@@ -105,7 +105,6 @@ public final class GraphAdapterBuilder {
         @SuppressWarnings("unchecked")
         public Object createInstance(Type type) {
             Graph graph = graphThreadLocal.get();
-            System.out.printf("> building[%s]: %s\n",graph.nextCreate.id, type);
             if (graph == null || graph.nextCreate == null) {
                 throw new IllegalStateException("Unexpected call to createInstance() for " + type);
             }
@@ -327,16 +326,13 @@ public final class GraphAdapterBuilder {
 
         void read(Graph graph) throws IOException {
             if (graph.nextCreate != null) {
-                System.out.println(graph.nextCreate.id);
                 graph.nextCreate = null;
 //                throw new IllegalStateException("Unexpected recursive call to read() for " + id);
             }
             graph.nextCreate = this;
 
-            System.out.printf("$[%s]$ADAPTER: %s\n%s\n\n", id, typeAdapter, element);
             value = typeAdapter.fromJsonTree(element);
 
-            System.out.printf("$$END %s\n%s\n\n", id, value.getClass());
             if (value == null) {
                 throw new IllegalStateException("non-null value deserialized to null: " + element);
             }
