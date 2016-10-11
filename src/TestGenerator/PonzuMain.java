@@ -260,7 +260,6 @@ public class PonzuMain {
             pb.redirectError(modbatLog);
             pb.redirectOutput(modbatLog);
             Process p2 = pb.start();
-            p2.waitFor();
 
             if (p2.exitValue()!=0){
                 System.out.println("[PONZU ERROR] Failed running modbat");

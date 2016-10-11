@@ -128,14 +128,37 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                 jsonElementAdapter.write(out, null);
             }
             else {
-                TypeAdapter adapter = gson.getDelegateAdapter(thisTypeAdapterFactory, TypeToken.get(value.getClass()));
+                Class clazz = value.getClass();
+                TypeAdapter adapter = gson.getDelegateAdapter(thisTypeAdapterFactory, TypeToken.get(clazz));
                 JsonElement o = null;
                 out.setLenient(true); // Flag set to ensure special double valeus for doubles are srialized.
 //                System.out.printf("<%s>: %s\n%s\n", this.getClass().getSimpleName(), value.getClass().getSimpleName(), value);
                 JsonElement jsonElement = adapter.toJsonTree(value);
+
                 if (jsonElement.isJsonPrimitive()) {
+                    JsonPrimitive jsonPrimitive = jsonElement.getAsJsonPrimitive();
+
+                    /*
+                    boolean isGraphAdapterNode = jsonPrimitive.isString() && adapter.getClass().equals(GraphAdapterBuilder.Adapter.class)
+                            && GraphAdapterBuilder.Graph.isName(jsonPrimitive.getAsString()) && !clazz.equals(String.class);
+
+                    if (isGraphAdapterNode) {
+                        //jsonPrimitive is a cyclic reference id, i.e "0x1", "0x2" marker for GraphAdapterBuilder.
+                        GraphAdapterBuilder.Graph referenceGraph = this.referenceGraphThread.get();
+                        System.out.println(referenceGraph.map);
+                        System.out.printf("\n%s", referenceGraph.map.get(value).value);
+                        System.exit(1);
+//                        GraphAdapterBuilder.Element valueElement = referenceGraph.map.get(jsonPrimitive.getAsString());
+//                        System.out.println(valueElement.element);
+                        o = jsonPrimitive;
+                    } else {
+                        // jsonPrimitive is actually a primitive type.
+
+                    }
+                    */
+
                     JsonObject jsonPrimitiveWrapper = new JsonObject();
-                    jsonPrimitiveWrapper.add(primitive_token, jsonElement.getAsJsonPrimitive());
+                    jsonPrimitiveWrapper.add(primitive_token, jsonPrimitive);
                     jsonPrimitiveWrapper.add(class_token, new JsonPrimitive(value.getClass().getName()));
                     if (allClassNameThread != null) allClassNameThread.get().add(value.getClass().getName());
                     o = jsonPrimitiveWrapper;
@@ -181,11 +204,11 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                     Class clazz = Class.forName(className);
                     TypeAdapter adapter = gson.getDelegateAdapter(thisTypeAdapterFactory, TypeToken.get(clazz));
                     // parse wrapped primitive wrapper from jsonObject -> jsonPrimitive
-
                     if (o.has(primitive_token)) {
                         if (clazz.equals(Double.class) || clazz.equals(double.class)){
                             adapter = gson.getAdapter(clazz);
                         }
+                        System.out.printf("\n000000 Graph passing 00000\n%s\n%s\n\n", o, adapter);
                         return (T) adapter.fromJsonTree(o.get(primitive_token));
                     } else if (o.has(array_token) &&  Collection.class.isAssignableFrom(clazz)){
                         // CASE COLLECTION TYPE
@@ -200,7 +223,6 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                                 String className_i = je_i.getAsJsonObject().get(class_token).getAsString();
                                 clazz_i = Class.forName(className_i);
                             } else if(je_i.isJsonArray()){
-                                System.out.println("xxx "  +je_i);
                                 clazz_i = Object[].class;
                             } else
                                 throw new IllegalStateException("[UniversalTypeAdapterFactory Collection conversion: not JsonArray or JsonObject]");
@@ -229,21 +251,27 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                     o.remove(class_token);
                     return (T) adapter.fromJsonTree(o);
                 } else {
-                    if (je.isJsonPrimitive() && GraphAdapterBuilder.Graph.isName(je.getAsString()) && referenceGraphThread != null){
-                        GraphAdapterBuilder.Graph referenceGraph = referenceGraphThread.get();
-                        GraphAdapterBuilder.Element<?> e = referenceGraph.map.get(je.getAsString());
-                        if (e == null){
-                            throw new NullPointerException("GraphAdapterBuilder.Element cannot be null");
-                        }
-                        if (e.value == null){
-                            if (e.typeAdapter == null){
-                                e.typeAdapter = (TypeAdapter)this;
-                            }
-                            e.read(referenceGraph);
-                        }
-                        return (T)e.value;
-                    }
-
+                    throw new IllegalStateException("YEAH HELLO");
+//                    if (je.isJsonPrimitive() && GraphAdapterBuilder.Graph.isName(je.getAsString()) && referenceGraphThread != null){
+//                        GraphAdapterBuilder.Graph referenceGraph = referenceGraphThread.get();
+//                        GraphAdapterBuilder.Element<?> e = referenceGraph.map.get(je.getAsString());
+//
+//                        if (e == null){
+//                            throw new NullPointerException("GraphAdapterBuilder.Element cannot be null");
+//                        }
+//                        if (e.value == null){
+//                            System.out.printf("=========================\n%s\n%s\n==================", e.typeAdapter, e.element);
+//                            if (e.typeAdapter == null){
+//                                e.typeAdapter = (TypeAdapter)this;
+//                            }
+////                            System.out.println("reading refGraph with " + e.typeAdapter);
+//                            e.read(referenceGraph);
+//                        }
+////                        System.out.println("-----restoring cyclic: " + e.value);
+//                        System.out.println("WHAT?? " + je);
+//                        System.out.println("--"+ e.value.getClass());
+//                        return (T)e.value;
+//                    }
                 }
             } catch (ClassNotFoundException e){
                 e.printStackTrace();

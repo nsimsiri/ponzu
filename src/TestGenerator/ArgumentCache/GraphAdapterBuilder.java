@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.InstanceCreator;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.google.gson.TypeAdapter;
 import com.google.gson.TypeAdapterFactory;
 import com.google.gson.internal.ConstructorConstructor;
@@ -89,125 +90,7 @@ public final class GraphAdapterBuilder {
 
             final TypeAdapter<T> typeAdapter = gson.getDelegateAdapter(this, type);
             final TypeAdapter<JsonElement> elementAdapter = gson.getAdapter(JsonElement.class);
-            return new TypeAdapter<T>() {
-                @Override public void write(JsonWriter out, T value) throws IOException {
-                    if (value == null) {
-                        out.nullValue();
-                        return;
-                    }
-
-                    Graph graph = graphThreadLocal.get();
-                    boolean writeEntireGraph = false;
-
-          /*
-           * We have one of two cases:
-           *  1. We've encountered the first known object in this graph. Write
-           *     out the graph, starting with that object.
-           *  2. We've encountered another graph object in the course of #1.
-           *     Just write out this object's name. We'll circle back to writing
-           *     out the object's value as a part of #1.
-           */
-
-                    if (graph == null) {
-                        writeEntireGraph = true;
-                        graph = new Graph(new IdentityHashMap<Object, Element<?>>());
-                    }
-
-                    @SuppressWarnings("unchecked") // graph.map guarantees consistency between value and T
-                            Element<T> element = (Element<T>) graph.map.get(value);
-                    if (element == null) {
-                        element = new Element<T>(value, graph.nextName(), typeAdapter, null);
-                        graph.map.put(value, element);
-                        graph.queue.add(element);
-                    }
-
-                    if (writeEntireGraph) {
-                        graphThreadLocal.set(graph);
-                        try {
-                            out.beginObject();
-                            Element<?> current;
-                            while ((current = graph.queue.poll()) != null) {
-                                out.name(current.id);
-                                current.write(out);
-                            }
-                            out.endObject();
-                        } finally {
-                            graphThreadLocal.remove();
-                        }
-                    } else {
-                        out.value(element.id);
-                    }
-                }
-
-                @Override public T read(JsonReader in) throws IOException {
-                    if (in.peek() == JsonToken.NULL) {
-                        in.nextNull();
-                        return null;
-                    }
-
-          /*
-           * Again we have one of two cases:
-           *  1. We've encountered the first known object in this graph. Read
-           *     the entire graph in as a map from names to their JsonElements.
-           *     Then convert the first JsonElement to its Java object.
-           *  2. We've encountered another graph object in the course of #1.
-           *     Read in its name, then deserialize its value from the
-           *     JsonElement in our map. We need to do this lazily because we
-           *     don't know which TypeAdapter to use until a value is
-           *     encountered in the wild.
-           */
-
-                    String currentName = null;
-                    Graph graph = graphThreadLocal.get();
-                    boolean readEntireGraph = false;
-
-                    if (graph == null) {
-                        graph = new Graph(new HashMap<Object, Element<?>>());
-                        readEntireGraph = true;
-
-                        // read the entire tree into memory
-                        in.beginObject();
-                        while (in.hasNext()) {
-                            String name = in.nextName();
-                            if (currentName == null) {
-                                currentName = name;
-                            }
-                            JsonElement element = elementAdapter.read(in);
-                            if (element.isJsonObject()){
-                                JsonObject jsonObject = (JsonObject) element;
-                                if (jsonObject.has(UniversalTypeAdapterFactory.class_token)){
-                                    try {
-                                        Class<?> class_ = Class.forName(jsonObject.get(UniversalTypeAdapterFactory.class_token).getAsString());
-                                    } catch (Exception e){
-                                        e.printStackTrace();
-                                    }
-                                }
-                            }
-                            graph.map.put(name, new Element<T>(null, name, typeAdapter, element));
-                        }
-                        in.endObject();
-                    } else {
-                        currentName = in.nextString();
-                    }
-
-                    if (readEntireGraph) {
-                        graphThreadLocal.set(graph);
-                    } try {
-                        @SuppressWarnings("unchecked") // graph.map guarantees consistency between value and T
-                                Element<T> element = (Element<T>) graph.map.get(currentName);
-                        // now that we know the typeAdapter for this name, go from JsonElement to 'T'
-                        if (element.value == null) {
-                            element.typeAdapter = typeAdapter;
-                            element.read(graph);
-                        }
-                        return element.value;
-                    } finally {
-                        if (readEntireGraph) {
-                            graphThreadLocal.remove();
-                        }
-                    }
-                }
-            };
+            return new Adapter<T>(gson, graphThreadLocal,  typeAdapter,  elementAdapter);
         }
 
         /**
@@ -222,6 +105,7 @@ public final class GraphAdapterBuilder {
         @SuppressWarnings("unchecked")
         public Object createInstance(Type type) {
             Graph graph = graphThreadLocal.get();
+            System.out.printf("> building[%s]: %s\n",graph.nextCreate.id, type);
             if (graph == null || graph.nextCreate == null) {
                 throw new IllegalStateException("Unexpected call to createInstance() for " + type);
             }
@@ -230,6 +114,134 @@ public final class GraphAdapterBuilder {
             graph.nextCreate.value = result;
             graph.nextCreate = null;
             return result;
+        }
+    }
+
+    public static class Adapter<T> extends TypeAdapter<T>{
+            public ThreadLocal<Graph> graphThreadLocal;
+            public TypeAdapter<T> typeAdapter;
+            public TypeAdapter<JsonElement> elementAdapter;
+            public Gson gson;
+
+            public Adapter(Gson gson, ThreadLocal<Graph> graphThreadLocal, TypeAdapter<T> typeAdapter,
+                           TypeAdapter<JsonElement> elementAdapter){
+                this.graphThreadLocal = graphThreadLocal;
+                this.typeAdapter = typeAdapter;
+                this.elementAdapter = elementAdapter;
+                this.gson = gson;
+            }
+            @Override public void write(JsonWriter out, T value) throws IOException {
+                if (value == null) {
+                    out.nullValue();
+                    return;
+                }
+
+                Graph graph = graphThreadLocal.get();
+                boolean writeEntireGraph = false;
+
+              /*
+               * We have one of two cases:
+               *  1. We've encountered the first known object in this graph. Write
+               *     out the graph, starting with that object.
+               *  2. We've encountered another graph object in the course of #1.
+               *     Just write out this object's name. We'll circle back to writing
+               *     out the object's value as a part of #1.
+               */
+
+                if (graph == null) {
+                    writeEntireGraph = true;
+                    graph = new Graph(new IdentityHashMap<Object, Element<?>>());
+                }
+
+                @SuppressWarnings("unchecked") // graph.map guarantees consistency between value and T
+                        Element<T> element = (Element<T>) graph.map.get(value);
+                if (element == null) {
+                    TypeAdapter dynamicTypeAdapter = gson.getAdapter(value.getClass());
+                    element = new Element<T>(value, graph.nextName(), typeAdapter, null);
+//                    element = new Element<T>(value, graph.nextName(), dynamicTypeAdapter, null);
+                    graph.map.put(value, element);
+                    graph.queue.add(element);
+                }
+
+                if (writeEntireGraph) {
+                    graphThreadLocal.set(graph);
+                    try {
+                        out.beginObject();
+                        Element<?> current;
+                        while ((current = graph.queue.poll()) != null) {
+                            out.name(current.id);
+                            current.write(out);
+//                            out.name(String.format("%s_type", current.id));
+//                            out.value(value.getClass().getName());
+                        }
+                        out.endObject();
+
+                    } finally {
+                        graphThreadLocal.remove();
+                    }
+                } else {
+                    out.value(element.id);
+                }
+            }
+
+            /** READ GRAPH */
+            @Override public T read(JsonReader in) throws IOException {
+            if (in.peek() == JsonToken.NULL) {
+                in.nextNull();
+                return null;
+            }
+
+          /*
+           * Again we have one of two cases:
+           *  1. We've encountered the first known object in this graph. Read
+           *     the entire graph in as a map from names to their JsonElements.
+           *     Then convert the first JsonElement to its Java object.
+           *  2. We've encountered another graph object in the course of #1.
+           *     Read in its name, then deserialize its value from the
+           *     JsonElement in our map. We need to do this lazily because we
+           *     don't know which TypeAdapter to use until a value is
+           *     encountered in the wild.
+           */
+
+            String currentName = null;
+            Graph graph = graphThreadLocal.get();
+            boolean readEntireGraph = false;
+
+            if (graph == null) {
+                graph = new Graph(new HashMap<Object, Element<?>>());
+                readEntireGraph = true;
+
+                // read the entire tree into memory
+                in.beginObject();
+                while (in.hasNext()) {
+                    String name = in.nextName();
+                    if (currentName == null) {
+                        currentName = name;
+                    }
+                    JsonElement element = elementAdapter.read(in);
+                    graph.map.put(name, new Element<T>(null, name, typeAdapter, element));
+                }
+                in.endObject();
+            } else {
+                currentName = in.nextString();
+            }
+            if (readEntireGraph) {
+                graphThreadLocal.set(graph);
+            } try {
+                @SuppressWarnings("unchecked") // graph.map guarantees consistency between value and T
+                        Element<T> element = (Element<T>) graph.map.get(currentName);
+                // now that we know the typeAdapter for this name, go from JsonElement to 'T'
+
+                if (element.value == null) {
+                    element.typeAdapter = typeAdapter;
+                    element.read(graph);
+                }
+                return element.value;
+            } finally {
+                if (readEntireGraph) {
+                    graphThreadLocal.remove();
+                }
+            }
         }
     }
 
@@ -266,7 +278,14 @@ public final class GraphAdapterBuilder {
         }
 
         public static boolean isName(String name){
-            return Pattern.matches("0x[0-9]+$", name);
+            return Pattern.matches("0x[a-z0-9]+$", name);
+        }
+
+        public static boolean isNamesType(String name){
+            if (Pattern.matches("0x[a-z0-9]+_type", name)){
+                return true;
+            }
+            return false;
         }
     }
 
@@ -307,17 +326,25 @@ public final class GraphAdapterBuilder {
         }
 
         void read(Graph graph) throws IOException {
-            if (graph.nextCreate != null) {throw new IllegalStateException("Unexpected recursive call to read() for " + id);
+            if (graph.nextCreate != null) {
+                System.out.println(graph.nextCreate.id);
+                graph.nextCreate = null;
+//                throw new IllegalStateException("Unexpected recursive call to read() for " + id);
             }
             graph.nextCreate = this;
+
+            System.out.printf("$[%s]$ADAPTER: %s\n%s\n\n", id, typeAdapter, element);
             value = typeAdapter.fromJsonTree(element);
+
+            System.out.printf("$$END %s\n%s\n\n", id, value.getClass());
             if (value == null) {
                 throw new IllegalStateException("non-null value deserialized to null: " + element);
             }
         }
     }
     public static void main(String[] args){
-        System.out.println(Pattern.matches("0x[0-9]+$", "110x1"));
+        System.out.println(Pattern.matches("0x[a-z0-9]+_type", "0x3e8_type"));
+        System.out.print(Integer.toHexString(1000));
     }
 }
 //    Contact GitHub API Training Shop Blog About

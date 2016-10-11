@@ -282,34 +282,38 @@ public class UniversalTypeAdapterFactoryTest {
 
     public static void testCollections() {
         String json = "";
+        Gson gson = null;
 
         List lt = new ArrayList(Arrays.asList(new Tree[]{t, t2}));
-        Gson gson = UniversalTypeAdapterFactory.buildGson(lt);
+        gson = UniversalTypeAdapterFactory.buildGson(lt);
         json = gson.toJson(lt);
+        System.out.println(json);
         List _lt = gson.fromJson(json, lt.getClass());
-        assert(lt.toString().equals(_lt.toString()));
-        System.out.println("List<Tree> passed. (Tree is abstract)");
+        System.out.println(_lt);
+        System.out.println(lt);
+//        assert(lt.toString().equals(_lt.toString()));
+//        System.out.println("List<Tree> passed. (Tree is abstract)");
 
-        gson = UniversalTypeAdapterFactory.buildGson();
-        List l = new ArrayList(Arrays.asList(new Integer[]{1,2}));
-        json = gson.toJson(l);
-        List _l = gson.fromJson(json, l.getClass());
-        assert(l.equals(_l));
-        System.out.println("List<Integer> passed.");
-
-        Set s = new HashSet(Arrays.asList(new Integer[]{1,2}));
-        gson = UniversalTypeAdapterFactory.buildGson();
-        json = gson.toJson(s);
-        Set _s = gson.fromJson(json, s.getClass());
-        assert(_s.equals(s));
-        System.out.println("Set<Integer> passed.");
-
-        List<List> ll = new LinkedList(Arrays.asList(new Object[]{s, l}));
-        gson = UniversalTypeAdapterFactory.buildGson();
-        json = gson.toJson(ll);
-        List<List> _ll = gson.fromJson(json, ll.getClass());
-        assert(ll.equals(_ll));
-        System.out.println("List<? extends Collection> passed.");
+//        gson = UniversalTypeAdapterFactory.buildGson();
+//        List l = new ArrayList(Arrays.asList(new Integer[]{1,2}));
+//        json = gson.toJson(l);
+//        List _l = gson.fromJson(json, l.getClass());
+//        assert(l.equals(_l));
+//        System.out.println("List<Integer> passed.");
+//
+//        Set s = new HashSet(Arrays.asList(new Integer[]{1,2}));
+//        gson = UniversalTypeAdapterFactory.buildGson();
+//        json = gson.toJson(s);
+//        Set _s = gson.fromJson(json, s.getClass());
+//        assert(_s.equals(s));
+//        System.out.println("Set<Integer> passed.");
+//
+//        List<List> ll = new LinkedList(Arrays.asList(new Object[]{s, l}));
+//        gson = UniversalTypeAdapterFactory.buildGson();
+//        json = gson.toJson(ll);
+//        List<List> _ll = gson.fromJson(json, ll.getClass());
+//        assert(ll.equals(_ll));
+//        System.out.println("List<? extends Collection> passed.");
 
     }
 
@@ -343,6 +347,7 @@ public class UniversalTypeAdapterFactoryTest {
         assert(_t.equals(t));
         gson = buildGson(t2);
         json = gson.toJson(t2);
+        System.out.println(json);
         Tree _t2 = gson.fromJson(json, t2.getClass());
         assert(_t2.equals(t2));
         System.out.println("Abstract Tree (BinTree, ScalaTree) passed.");
@@ -453,6 +458,14 @@ public class UniversalTypeAdapterFactoryTest {
         }
     }
 
+    public static class DecFormWrap {
+        public DecimalFormat d = new DecimalFormat("[1\\s+]");
+//        public ScalaTree d = (ScalaTree)l1;
+        public DecFormWrap next;
+        public String k = "hello";
+        @Override public String toString() { return String.format("[(%s)next=%s]", k, System.identityHashCode(next));}
+    }
+
     public static void NestedCollectionObjectArrayTest() throws ClassNotFoundException, InterruptedException{
 
         Gson gson = null;
@@ -510,6 +523,19 @@ public class UniversalTypeAdapterFactoryTest {
         assert(cal.getTime().toString().equals(_cal.getTime().toString()));
     }
 
+    public static void CycleDecimalFormat() {
+        DecFormWrap d = new DecFormWrap();
+        d.next = new DecFormWrap();
+        d.next.next = d;
+        Gson gson = buildGson(d);
+        String json = gson.toJson(d);
+        System.out.println(json);
+        DecFormWrap _d = gson.fromJson(json, d.getClass());
+        assert(_d.d.equals(d.d));
+        assert(d.next.next.equals(d));
+        assert(d.next.d.equals(d.d));
+    }
+
     public static void main(String args[]){
         try {
 //            testSpecialDoubleValue();
@@ -519,13 +545,14 @@ public class UniversalTypeAdapterFactoryTest {
 //            testArbArray();
 //            testTree();
 //            testCollections();
-            testMap();
+//            testMap();
 //            testDecimalFormat();
 //            enumTest();
 //            testDouble();
 //            NestedCollectionObjectArrayTest();
 //            StringBuilderTest();
 //            GregorianCalendarTest();
+            CycleDecimalFormat();
 
         } catch (Exception e){
             e.printStackTrace();

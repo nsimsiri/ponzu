@@ -76,6 +76,7 @@ public final class UniversalArrayTypeAdapter<E> extends TypeAdapter<Object> {
 
     @SuppressWarnings("unchecked")
     @Override public void write(JsonWriter out, Object array) throws IOException {
+        out.setLenient(true);
         if (array == null) {
             out.nullValue();
             return;

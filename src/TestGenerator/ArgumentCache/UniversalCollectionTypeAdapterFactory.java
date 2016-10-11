@@ -103,6 +103,7 @@ public final class UniversalCollectionTypeAdapterFactory implements TypeAdapterF
         }
 
         @Override public void write(JsonWriter out, Collection<E> collection) throws IOException {
+            out.setLenient(true);
             if (collection == null) {
                 out.nullValue();
                 return;
