@@ -69,6 +69,7 @@ public class InvParser {
 		} catch (Exception e) {
 			System.out.println("Exception caught (" + e.getClass().getSimpleName() 
 					+ ") : " + e.getMessage());
+			e.printStackTrace();
 			System.exit(1);
 		}
 		

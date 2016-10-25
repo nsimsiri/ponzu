@@ -22,6 +22,7 @@ public class PonzuOptions {
 
     public static final String SUT_COMMAND_FLAG="SUT_COMMAND";
     public static final String DEBUG_FLAG="--debug";
+    public static final String DEBUG_CACHE_SPACE_FLAG="--debug-cache-space";
     public static final String TEST_CLASS_FLAG="--test-class";
     public static final String MODBAT_CONFIG_FLAG= "--modbat-cfg";
     public static final String TEST_SUITES_FLAG="--tests";
@@ -103,10 +104,12 @@ public class PonzuOptions {
     public boolean isDebug(){
         return this.optionMap.containsKey(DEBUG_FLAG);
     }
+    public boolean isDebugCacheSpace() { return this.optionMap.containsKey(DEBUG_CACHE_SPACE_FLAG);}
 
     public String getDebugFile(){
         return this.optionMap.get(DEBUG_FLAG);
     }
+    public String getDebugCacheSpaceFile() { return this.optionMap.get(DEBUG_CACHE_SPACE_FLAG);}
 
     public boolean isTestingCacheDeserialization(){
         return this.optionMap.containsKey(SER_TEST);
@@ -149,7 +152,7 @@ public class PonzuOptions {
             }
         }
         // default modbat commandline arguments
-        String modbatOptStr = String.format("--classpath=./%s %s --log-path=%s --loop-limit=50 -n=500", binDirname, modbatModelName, errDirname);
+        String modbatOptStr = String.format("--classpath=./%s %s --log-path=%s --loop-limit=50 -n=100", binDirname, modbatModelName, errDirname);
 //        if (verbose) System.out.println(modbatOptStr);
         return modbatOptStr;
 //     return Arrays.asList(modbatOptStr.split(" "));

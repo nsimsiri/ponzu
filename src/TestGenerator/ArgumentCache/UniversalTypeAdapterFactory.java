@@ -359,6 +359,7 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
 
         // IMPORTANT *** REGISTER CUSTOM ADAPTERS
         gb.registerTypeAdapterFactory(utaf);
+        gb.registerTypeAdapterFactory(new UniversalClassAdapterFactory());
         gb.registerTypeAdapterFactory(UniversalArrayTypeAdapter.FACTORY);
         gb.registerTypeAdapterFactory(new UniversalCollectionTypeAdapterFactory());
         gb.registerTypeAdapter(Double.class, doubleAdapter);

@@ -146,10 +146,6 @@ public class Initial_MTS_Generator {
 		
 		System.out.println("There are " + (processingStates.size() + 1) + " states"); // does all combinations consistency check
 		
-		//System.exit(0);
-		
-		//System.out.println("Assert: " + initialState.getVariableState());
-		
 		for (String name : constructorNames)
 		{
 			yicesRun.push();

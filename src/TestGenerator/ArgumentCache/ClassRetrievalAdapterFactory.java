@@ -66,7 +66,8 @@ public class ClassRetrievalAdapterFactory implements TypeAdapterFactory {
                 boolean isPrimitive = UniversalTypeAdapterFactory.primitiveWrappers.contains(value.getClass()) ||
                                       value.getClass().equals(String.class) ||
                                       value.getClass().isArray() ||
-                                      value.getClass().isEnum();
+                                      value.getClass().isEnum() ||
+                                      Class.class.isAssignableFrom(value.getClass());
 
                 if (!isPrimitive) ClassRetrievalAdapter.addUniqueClass(this.uniqueClassSetThread, typeToken.getRawType());
                 if (!uniqueObjectSet.contains(System.identityHashCode(value))) {
@@ -120,6 +121,7 @@ public class ClassRetrievalAdapterFactory implements TypeAdapterFactory {
                 .serializeSpecialFloatingPointValues();
 
         gb.setFieldNamingStrategy(new UniversalTypeAdapterFactory.DuplicateFieldNamingStrategy());
+        gb.registerTypeAdapterFactory(new UniversalClassAdapterFactory());
         gb.registerTypeAdapterFactory(classRetrievalAdapterFactory);
         gb.registerTypeAdapter(Double.class, doubleAdapter);
         gb.registerTypeAdapter(double.class, doubleAdapter);

@@ -89,6 +89,17 @@ public class ArgumentObjectInfo implements Serializable {
             Gson gson = UniversalTypeAdapterFactory.buildGsonWithKnownClasses(this.tracked_classnames, this.objCyclicReferenceCount);
             if (this.class_!=null){
                 this.object_ = UniversalTypeAdapterFactory.deserialize(serializedObject, this.class_, gson);
+
+//                gson = UniversalTypeAdapterFactory.buildGson(this.object_, this.tracked_classnames, referenceCountWrapper);
+//                String testString = gson.toJson(this.object_);
+//                if(!testString.equals(this.serializedObject)){
+//                    System.out.println("\n----------- " + this.class_string + "---------");
+//                    System.out.println(this.serializedObject+"\n");
+//                    System.out.println("==$==");
+//                    System.out.println(testString+"\n");
+//                    System.exit(1);
+//                }
+
             }
         } catch (RuntimeException e){
             System.err.format("[PONZU Exception]: ! unable to deserialize object of type [%s] for signature [%s] for the following object:\n" +
@@ -96,6 +107,7 @@ public class ArgumentObjectInfo implements Serializable {
             e.printStackTrace();
             this.object_ = null;
         }
+        this.serializedObject = null;
     }
 
     private static void __examine_obj__ (Object o){

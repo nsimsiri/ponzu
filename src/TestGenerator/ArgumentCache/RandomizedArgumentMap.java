@@ -14,12 +14,16 @@ import java.util.stream.Collectors;
  *
  * Class ArgumentMap: Used on the SUT's wrapper to generate
  */
-public class RandomizedArgumentMap implements  Serializable, IArgumentCache {
+public class RandomizedArgumentMap implements Serializable, IArgumentCache {
     private static final long serializedVersionUID = 1L;
     Map<MethodSignaturesPair, List<List<ArgumentObjectInfo>>> cacheMap;
 
     public RandomizedArgumentMap(){
         this.cacheMap = new HashMap<MethodSignaturesPair, List<List<ArgumentObjectInfo>>>();
+    }
+
+    public RandomizedArgumentMap(Map<MethodSignaturesPair, List<List<ArgumentObjectInfo>>> cacheMap){
+        this.cacheMap = cacheMap;
     }
 
     public void append(String methodName, List<ArgumentObjectInfo> objInfoList){

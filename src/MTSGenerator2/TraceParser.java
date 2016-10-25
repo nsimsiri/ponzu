@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Stack;
+import java.util.function.Function;
 
 import DataTypes.AnalysisInstance;
 import DataTypes.Event2;
@@ -140,6 +141,11 @@ public class TraceParser {
 		new TraceParser(filepath + tracename + ".dtrace.gz", classname, x);
 
 		System.out.println("Traces Parsed...");
+		Function<Void, Void> memLook = (Void v) -> {
+			Runtime rt = Runtime.getRuntime();
+			System.out.printf("\n----MEMORY USAGE----\nFree=%s bytes\nMax=%s bytes\nTotal=%s bytes\n\n", rt.freeMemory(), rt.maxMemory(), rt.totalMemory());
+			return null;
+		};
 
 		// This code eliminates supposedly private methods (those with event
 		// counts in the traces equal to 0). This may be modified by feeding in
@@ -158,6 +164,7 @@ public class TraceParser {
 		outputMTSs.add(invariant_based_MTS);
 		(new outputResults()).outputToMTSA(outputMTSs, filepath + classname + "_inva_based_2" + ".lts");
 		(new outputResults()).outputToMTSADOT(outputMTSs, filepath + classname + "_inva_based_2" + ".dot");
+		memLook.apply(null);
 
 /* Natcha's Test Generator
 		TestGenerator testGen = new TestGenerator(invariant_based_MTS, new StackArTestGen().new StackArTest());
@@ -172,13 +179,15 @@ public class TraceParser {
 
 //		ModbatModelGenerator modbadGen = new ModbatModelGenerator(invariant_based_MTS, packagename, classname);
 //		modbadGen.ouputScalaModel(filepath + classname + "_inva_based_2", packagename);
-
+		System.out.println("[TRACE PARSER] - Trace Proprocessing done.. creating initialTraceModel");
 		TraceAnalyzer trace_analysis = new TraceAnalyzer(x, invariant_based_MTS,
 															init_gen.getYicesContext(), init_gen.getConverter());
 		MTS initialTraceModel = trace_analysis.getInitialTraceModel();
 		outputMTSs = new ArrayList<MTS>();
 		outputMTSs.add(initialTraceModel);
 		(new outputResults()).outputToMTSADOT(outputMTSs, filepath + classname + "_initial_trace_model" + ".dot");
+		System.out.println("[TRACE PARSER] - created initialTraceModel.. creating SEKT next.");
+		memLook.apply(null);
 
 /* Traditional KTails ---------------------------------------------------------------------------------------------------
 		MTS traditionalKTailMTS = trace_analysis.traditionalKTail(1);
@@ -424,15 +433,25 @@ public class TraceParser {
 	
 	
 	private class TraceProcessor extends FileIO.Processor {
-		
+
+        /**
+         * @param ppt: Program point. Datastructure for the entering/exiting a function call.
+         * @param vt: "values" of objects associated at the ppt
+         *
+         *
+         * */
 		@Override
 		public void process_sample(PptMap all_ppts, PptTopLevel ppt,ValueTuple vt, /*@Nullable*/ Integer nonce)
 		{
-//			System.out.println("VT: " + vt.vals.length);
-//			System.out.println("toplevel: " + ppt.varNames());
-//			System.out.println(ppt);
-//			System.out.println("nonce: " + nonce);
-//			System.out.println("all_ppt:");
+            System.out.println("========");
+            System.out.println(ppt);
+            System.out.println("toplevel: " + ppt.varNames());
+			System.out.println("VT: " + vt.vals.length);
+            System.out.println(vt);
+            System.out.println("Enter nonce=" + nonce + " object_ID=" + vt.vals[0] + " ppt_name=" + ppt.name);
+            if (callLevel.containsKey(vt.vals[0])) System.out.println("call level: " + callLevel.get(vt.vals[0]));
+            System.out.println("========");
+
 //			for(PptTopLevel _ppt : all_ppts.ppt_all_iterable()){
 //				System.out.println(_ppt);
 //			}
@@ -448,6 +467,9 @@ public class TraceParser {
 			}
 			if (ppt.is_enter())
 			{
+                // push entry ppt to stack (stack kept by callValue in callLevel map)
+                // callValue = 0 is outer most or where the test suite is making call.
+
 				if(vt.vals.length == 0)
 				{
 					return;
@@ -470,6 +492,7 @@ public class TraceParser {
 					callLevel.put(object_ID, callValue);
 				}
 			}
+
 			else
 			{
 				if(vt.vals.length == 0)
@@ -506,7 +529,6 @@ public class TraceParser {
 					if(callValue > 0) callValue--;
 					callLevel.put(object_ID, callValue);
 				}
-				//System.out.println("Exit " + nonce + " - " + callValue);
 
 				if (callValue > 0)
 					return;
@@ -515,13 +537,13 @@ public class TraceParser {
 				if(!newItem)
 				{
 					entry = (EntryInfo) currentEntry.get(object_ID);
-					
 					if (entry != null && !entry.nonce.equals(nonce))
 					{
 						System.out.println("Error: The traces do not follow stack discipline!");
 						System.out.println("This implies some degree of concurrency in the code.");
 						System.out.println("object_ID=" + object_ID + " entry.nonce=" + entry.nonce + " nonce=" + nonce);
 						badIDs.add(object_ID);
+                        System.exit(1);
 						return;
 					}
 					else if (entry == null)

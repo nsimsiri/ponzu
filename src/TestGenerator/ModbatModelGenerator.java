@@ -14,6 +14,8 @@ import daikon.PptName;
 import daikon.inv.Invariant;
 import daikon.inv.binary.twoScalar.TwoScalar;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.*;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -32,8 +34,10 @@ public class ModbatModelGenerator {
 
     private MTS mts;
     private String instanceName;
-    private String classname;
-    private String packagename;
+    private String classname; //shortened class name, e.g "Integer" from "java.lang.Integer"
+    private String packagename; // prefix of fullclassname, e.g "java.lang" from  "java.lang.Integer"
+    private Class clazz;
+    private String fullClassname; // should be packagename + "." + classname, e.g "java.lang.Integer"
 
     private final String[] IMPORT_STATEMENTS = new String[]{
             "modbat.dsl._",
@@ -65,7 +69,8 @@ public class ModbatModelGenerator {
         this.instanceName = String.format("%sInstance", mts.getName());
         this.classname = classname;
         this.packagename = packagename;
-        String fullClassname = String.format("%s_%s", packagename, classname);
+        this.fullClassname = packagename + "." + classname;
+        String fullClassnameUnderscoreFormat = String.format("%s_%s", packagename, classname); // for reading Serialized File.
         this.argumentFormatter= new ModbatArgumentFormatter(ArgumentCacheStream.getDefaultNaming(fullClassname));
 
         // scala doesn't recognize java's primitive types, only uses wrappers.
@@ -74,7 +79,11 @@ public class ModbatModelGenerator {
         this.primitiveWrapperMap.put("int", "java.lang.Integer");
         this.primitiveWrapperMap.put("double", "java.lang.Double");
         this.primitiveWrapperMap.put("byte", "java.lang.Byte");
-
+        try {
+            this.clazz = Class.forName(fullClassname);
+        } catch (ClassNotFoundException e){
+            e.printStackTrace();
+        }
     }
 
     public static String getPrimitiveTypeWrapper(String type){
@@ -82,6 +91,9 @@ public class ModbatModelGenerator {
         type = Character.toUpperCase(type.charAt(0))+type.substring(1);
         return String.format("java.lang.%s", type);
     }
+
+    public static boolean isPrimitive(String type){return primitiveTypes.contains(type);}
+
 
 
     /**
@@ -113,7 +125,8 @@ public class ModbatModelGenerator {
      * @return
      */
 
-    private String formAndProcessArgumentString(PptName ppt, ArrayList<String> argVariables, ArrayList<String> argCreationStatements){
+    private List<String> formAndProcessArgumentString(PptName ppt, ArrayList<String> argVariables, ArrayList<String> argCreationStatements,
+                                                      Map<String, String> injectedArgStatementMap){
         List<String> methodSignatures = TestGenerator.parseArgSignature(ppt);
 
         // convert all primitive types to its corresponding wrapper type.
@@ -128,19 +141,12 @@ public class ModbatModelGenerator {
             for(Map.Entry<String, String> argStatementEntry : argStatementMap.entrySet()){
                 argVariables.add(argStatementEntry.getKey());
                 argCreationStatements.add(argStatementEntry.getValue());
+                if (injectedArgStatementMap != null){
+                    injectedArgStatementMap.put(argStatementEntry.getKey(), argStatementEntry.getValue());
+                }
             }
         }
-        // Forms string of series of arguments input ie. "x, y, z" to be used in the method call f(x,y,z)
-        StringBuffer combinedArgs = new StringBuffer("");
-        for(int i = 0; i < argVariables.size(); i++){
-            // make sure the variable is a variable for the arguments
-            if (ModbatArgumentFormatter.isAParamVariable(argVariables.get(i))){
-                combinedArgs.append(argVariables.get(i));
-                if (i<argVariables.size()-1) combinedArgs.append(",");
-            }
-        }
-
-        return combinedArgs.toString();
+        return argVariables;
     }
 
     /**
@@ -157,9 +163,9 @@ public class ModbatModelGenerator {
 
         ArrayList<String> constructorLines = new ArrayList<String>(); // statements to be executed in constructor
         ArrayList<String> argVariables = new ArrayList<String>(); // argument variable
-        String argumentString = this.formAndProcessArgumentString(constructorPpt, argVariables, constructorLines);
-
-        constructorLines.add(String.format("%s = new %s(%s)", this.instanceName, constructorPpt.getMethodName(), argumentString));
+        List<String> argumentList = this.formAndProcessArgumentString(constructorPpt, argVariables, constructorLines, null);
+        String combinedArgumentString = ModbatArgumentFormatter.argListToString(argumentList);
+        constructorLines.add(String.format("%s = new %s(%s)", this.instanceName, constructorPpt.getMethodName(), combinedArgumentString));
         constructorLines.add(String.format("println(\"%s %s\")", TRACE_MARKER, constructorPpt.getMethodName()));
         return formFSMTransitionBlock(0, outGoingState, constructorLines);
     }
@@ -181,7 +187,8 @@ public class ModbatModelGenerator {
         List<String> methodSignatures = TestGenerator.parseArgSignature(methodPpt);
         ArrayList<String> argVariables = new ArrayList<String>(); // argument variable
         ArrayList<String> argCreationStatements = new ArrayList<String>();
-        String combinedArgs = formAndProcessArgumentString(methodPpt, argVariables, argCreationStatements);
+        Map<String, String> argStatementMap = new HashMap<>(); // injected to formAndProcessArgumentString. Map contains "variables -> statment";
+        List<String> argumentList = formAndProcessArgumentString(methodPpt, argVariables, argCreationStatements, argStatementMap);
 
         //[INVARIANT ASSERTION] initialize invariant tester
         ModbatAssertionFormatter assertionFormatter = new ModbatAssertionFormatter(postConditions, this.instanceName);
@@ -191,8 +198,10 @@ public class ModbatModelGenerator {
         }
 
         //METHOD CALLED! make invocation and add arguments. Use formFSMTransitionBlock to format the transition block.
-        String methodLine = String.format("%s.%s(%s)", this.instanceName, methodPpt.getMethodName(), combinedArgs.toString());
-        argCreationStatements.add(methodLine);
+        ModbatModelMethodFormatter methodFormatter = new ModbatModelMethodFormatter(this.instanceName, this.clazz);
+        String argumentListVariable = ModbatArgumentFormatter.getSignatureArrayVariable(argStatementMap);
+        methodFormatter.formatMethod(methodPpt.getMethodName(), argumentListVariable, methodSignatures, argumentList, argCreationStatements);
+
 
         //[INVARIANT ASSERTION] obtain fields' value of instance after method call and make the assertion
         if (makeInvariantAssertion){

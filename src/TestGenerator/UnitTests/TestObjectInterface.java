@@ -20,4 +20,8 @@ public class TestObjectInterface {
 
         return K.compareTo(this.I)==0;
     }
+
+    public static void main(String[] args){
+
+    }
 }

@@ -52,7 +52,6 @@ public class TestGenerator {
     * */
     public static List<String> parseArgSignature(PptName pptname){
         String pptSignature = pptname.getSignature();
-        System.out.println("<HERE>==> SIGNATURE " + pptSignature);
         String args = pptSignature.substring(pptSignature.indexOf("(")+1, pptSignature.indexOf(")"));
         String[] parsedSignatures = args.split(",");
         List<String> signatures = new ArrayList<String>();
@@ -64,6 +63,7 @@ public class TestGenerator {
                 signatures.add(removedSpaceSignature);
             }
         }
+        System.out.println("SIGNATURES: " + signatures);
         return signatures;
     }
 

@@ -537,27 +537,32 @@ public class UniversalTypeAdapterFactoryTest {
         System.out.println("Cycle on decimal format passed");
     }
 
-    public static void ClassRetrievalTest(){
-
+    public static void nullCollection() throws ClassNotFoundException{
+        Collection<Number> A = new LinkedList<Number>(Arrays.asList(new Number[]{1.0, 2, Double.NaN, null}));
+        Gson gson = buildGson(A);
+        String json = gson.toJson(A);
+        System.out.println(json);
+        Collection<Number> B = UniversalTypeAdapterFactory.deserialize(json, A.getClass(), gson);
+        System.out.println(B);
     }
-
     public static void main(String args[]){
         try {
-//            testSpecialDoubleValue();
-//            testDuplicateFields();
-//            testCyclicDeq();
-//            testCyclicGraph();
-//            testArbArray();
-//            testTree();
-//            testCollections();
-//            testMap();
-//            testDecimalFormat();
-//            enumTest();
-//            testDouble();
-//            NestedCollectionObjectArrayTest();
-//            StringBuilderTest();
-//            GregorianCalendarTest();
+            testSpecialDoubleValue();
+            testDuplicateFields();
+            testCyclicDeq();
+            testCyclicGraph();
+            testArbArray();
+            testTree();
+            testCollections();
+            testMap();
+            testDecimalFormat();
+            enumTest();
+            testDouble();
+            NestedCollectionObjectArrayTest();
+            StringBuilderTest();
+            GregorianCalendarTest();
             CycleDecimalFormat();
+            nullCollection();
 
         } catch (Exception e){
             e.printStackTrace();

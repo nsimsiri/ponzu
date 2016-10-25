@@ -32,6 +32,13 @@ public class ArgumentCacheStream {
         return String.format("%sObjectMap.ser",name);
     }
 
+    public static String splitDefaultNaming(String name){
+        String[] spl = name.split("_");
+        name = spl[spl.length-1];
+        spl = name.split("ObjectMap.ser");
+        return spl[0];
+    }
+
     public IArgumentCache readObject(){
         try {
             InputStream file = new FileInputStream(this.filename);

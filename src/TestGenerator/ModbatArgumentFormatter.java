@@ -15,6 +15,7 @@ import java.util.Map;
  * - Formats ArgumentCacheStream and IArgumentCache object for ModbatModelGenerator.
  *
  * TODO: implement signature-cache map.
+ * TODO: look into different cases of interface.
  */
 public class ModbatArgumentFormatter {
 
@@ -39,6 +40,27 @@ public class ModbatArgumentFormatter {
         varStatementMap.put(this.streamName, streamCreationStatement);
         varStatementMap.put(this.cacheName, cacheCreationStatement);
         return varStatementMap;
+    }
+
+    // Forms string of series of arguments input ie. "x, y, z" to be used in the method call f(x,y,z)
+    public static String argListToString(List<String> argVariables){
+
+        StringBuffer combinedArgs = new StringBuffer("");
+        for(int i = 0; i < argVariables.size(); i++){
+            // make sure the variable is a variable for the arguments
+            if (ModbatArgumentFormatter.isAParamVariable(argVariables.get(i))){
+                combinedArgs.append(argVariables.get(i));
+                if (i<argVariables.size()-1) combinedArgs.append(",");
+            }
+        }
+        return combinedArgs.toString();
+    }
+
+    public static String getSignatureArrayVariable(Map<String, String> argStatementMap){
+        if (argStatementMap.containsKey("signatureArrayVar")){
+            return "signatureArrayVar";
+        }
+        return null;
     }
 
     public Map<String, String> getArgumentStatementsMap(String methodName, List<String> signatures){

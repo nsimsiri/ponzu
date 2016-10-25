@@ -114,7 +114,7 @@ public final class UniversalCollectionTypeAdapterFactory implements TypeAdapterF
             for (E element : collection) {
                 JsonElement jsonElement = elementTypeAdapter.toJsonTree(element);
                 jsonArray.add(jsonElement);
-                jsonArrayType.add(element.getClass().getName());
+                jsonArrayType.add(jsonElement.isJsonNull() ? null : element.getClass().getName());
             }
             jsonArrayWrapper.add(UniversalTypeAdapterFactory.array_token, jsonArray);
             jsonArrayWrapper.add(UniversalTypeAdapterFactory.array_type, jsonArrayType);
@@ -146,8 +146,11 @@ public final class UniversalCollectionTypeAdapterFactory implements TypeAdapterF
 
                 for(int i =0 ; i < elementArray.size(); i++){
                     try {
-                        Class elementType = Class.forName(elementArrayType.get(i).getAsString());
-                        E o = (E)gson.fromJson(elementArray.get(i), Class.forName(elementArrayType.get(i).getAsString()));
+                        E o = null;
+                        if (!elementArray.get(i).isJsonNull()){
+                            Class elementType = Class.forName(elementArrayType.get(i).getAsString());
+                            o = (E)gson.fromJson(elementArray.get(i), Class.forName(elementArrayType.get(i).getAsString()));
+                        }
                         collection.add(o);
                     } catch (ClassNotFoundException e){
                         e.printStackTrace();

@@ -9,19 +9,25 @@ import TestGenerator.ArgumentCache.RandomizedArgumentMap;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Function;
 
 //import modbat.mbt.Main;
 
@@ -30,6 +36,7 @@ import java.util.concurrent.Executors;
  * TODO (1) Chain Dtrace files ie. [StackAr1.dtrace.gz StackAr2.dtrace.gz ..] + use GeneratorApp class instead of
  * TODO (2): get rid of hardcoded classpath ../../lib/* by exporting ponzu to runnable jar (currently failing or something)
  * TODO (3): Use consistent naming scheme for modbat scala file.
+ * TODO (4): ** OPTIMIZE OBJECT CACHING MEMORY - see AgumentObjectInfo
  */
 public class PonzuMain {
     private static boolean verbose = true;
@@ -45,7 +52,11 @@ public class PonzuMain {
         if (args.length>0){
             PonzuOptions options = PonzuOptions.processArguments(args);
             if (options.isDebug()){
-                checkArgCache(options.getDebugFile());
+                checkArgCache(options.getDebugFile(), null);
+                System.exit(0);
+            }
+            if (options.isDebugCacheSpace()){
+                checkArgSpaceUsage(options.getDebugCacheSpaceFile());
                 System.exit(0);
             }
 
@@ -77,7 +88,7 @@ public class PonzuMain {
                         System.out.println("[PONZU] all Chicory processes finished.");
                     }
                     if (options.isTestingCacheDeserialization()){
-                        checkArgCache("./" + ArgumentCacheStream.getDefaultNaming(testClassnameFull));
+                        checkArgCache("./" + ArgumentCacheStream.getDefaultNaming(testClassnameFull), testClassnameFull);
                     }
                 }
             }
@@ -124,7 +135,7 @@ public class PonzuMain {
 
         // TODO 2: get rid of hardcoded classpath ../../lib/* by exporting ponzu to runnable jar (currently failing or something)
 //        ArrayList<String> javaCmd = new ArrayList<String>(Arrays.asList(new String[]{javapath, "-cp", String.format("%s:../../lib/*",classpath)}));
-        ArrayList<String> javaCmd = new ArrayList<String>(Arrays.asList(new String[]{javapath, "-cp", String.format("%s", classpath)}));
+        ArrayList<String> javaCmd = new ArrayList<String>(Arrays.asList(new String[]{javapath, "-Xms2500M", "-cp", String.format("%s", classpath)}));
 
         String[] chicoryCmd = chicoryCmdString.split(" ");
         javaCmd.addAll(Arrays.asList(chicoryCmd));
@@ -252,7 +263,7 @@ public class PonzuMain {
             }
 
             String modbatOption = options.loadModbatConfig(modelName_TEMP, binFilename, errFilename);
-            String modbatRunCmd = String.format("scala -cp %s %s %s", classpath, PATH_TO_MODBAT_TEMP, modbatOption);
+            String modbatRunCmd = String.format("scala -J-Xmx2G -cp %s %s %s", classpath, PATH_TO_MODBAT_TEMP, modbatOption);
             System.out.println("[PONZU running modbat] " + modbatRunCmd);
 
             ProcessBuilder pb = new ProcessBuilder(modbatRunCmd.split(" "));
@@ -260,7 +271,7 @@ public class PonzuMain {
             pb.redirectError(modbatLog);
             pb.redirectOutput(modbatLog);
             Process p2 = pb.start();
-
+            p2.waitFor();
             if (p2.exitValue()!=0){
                 System.out.println("[PONZU ERROR] Failed running modbat");
                 System.exit(1);
@@ -293,7 +304,51 @@ public class PonzuMain {
         return String.format("--ppt-omit-pattern=%s", omitString);
     }
 
-    private static void checkArgCache(String serFile){
+    private static void checkArgSpaceUsage(String serFile){
+        Function<Void, Void> memLook = (Void v) -> {
+            Runtime rt = Runtime.getRuntime();
+            System.out.printf("\n----MEMORY USAGE----\nFree=%s bytes\nMax=%s bytes\nTotal=%s bytes\n\n", rt.freeMemory(), rt.maxMemory(), rt.totalMemory());
+            return null;
+        };
+        System.err.println("[PONZU] Testing cache deserialization: " + serFile);
+        ArgumentCacheStream stream = new ArgumentCacheStream(serFile);
+        IArgumentCache cacheMap = (IArgumentCache)stream.readObject();
+        RandomizedArgumentMap realCacheMap = (RandomizedArgumentMap)cacheMap;
+        Map<MethodSignaturesPair, List<List<ArgumentObjectInfo>>> cacheImpl = realCacheMap.getCacheMap();
+
+        Iterator<Map.Entry<MethodSignaturesPair, List<List<ArgumentObjectInfo>>> > it = cacheImpl.entrySet().iterator();
+        System.out.println("fnished loading");
+        while(it.hasNext()){
+            Map.Entry<MethodSignaturesPair, List<List<ArgumentObjectInfo>>> e = it.next();
+            System.out.println(e.getKey());
+            int count = 5;
+            Iterator<List<ArgumentObjectInfo>> it2 = e.getValue().iterator();
+            while(it2.hasNext()){
+                List<ArgumentObjectInfo> params = it2.next();
+                if (count > 0){
+                    StringBuilder sb = new StringBuilder("(");
+                    for(ArgumentObjectInfo aoi : params){
+                        Object aoi_obj = aoi.getObject_();
+                        String aoi_obj_classname = "null_classname";
+                        if (aoi_obj != null) aoi_obj_classname = aoi_obj.getClass().getSimpleName();
+                        sb.append(String.format("[%s %s], ", aoi_obj, aoi_obj_classname));
+                    }
+                    sb.append(")");
+                    System.out.println("\t" + sb.toString());
+                    count--;
+                } else {
+//                    it2.remove();
+                }
+            }
+        }
+        memLook.apply(null);
+//        RandomizedArgumentMap m = new RandomizedArgumentMap(cacheImpl);
+//        ArgumentCacheStream acs = new ArgumentCacheStream(serFile);
+//        acs.writeObject(m);
+    }
+
+    private static void checkArgCache(String serFile, String name){
+        if (name == null) name = ArgumentCacheStream.splitDefaultNaming(serFile);
         System.err.println("[PONZU] Testing cache deserialization: " + serFile);
         ArgumentCacheStream stream = new ArgumentCacheStream(serFile);
         IArgumentCache cacheMap = (IArgumentCache)stream.readObject();
@@ -308,12 +363,55 @@ public class PonzuMain {
                     String aoi_obj_classname = "null_classname";
                     if (aoi_obj != null) aoi_obj_classname = aoi_obj.getClass().getSimpleName();
                     sb.append(String.format("[%s %s], ", aoi_obj, aoi_obj_classname));
-
                 }
                 sb.append(")");
                 System.out.println("\t" + sb.toString());
             }
         }
         System.err.printf("[PONZU]: COMPLETED DESERIALIZATION TEST: %s\n", cacheImpl.size());
+        try {
+            FileOutputStream fos = new FileOutputStream(new File(String.format("cache-stat-%s.csv", name)));
+            PrintWriter out = new PrintWriter(fos);
+            List<String> methodName = new ArrayList<>();
+            List<Integer> count = new ArrayList<>();
+            MethodSignaturesPair maxMSP = null;
+            MethodSignaturesPair minMSP = null;
+            for (Map.Entry<MethodSignaturesPair, List<List<ArgumentObjectInfo>>> e : cacheImpl.entrySet()){
+                methodName.add(e.getKey().getMethodName());
+                count.add(e.getValue().size());
+                if (maxMSP == null) maxMSP = e.getKey();
+                else {
+                    if (cacheImpl.get(maxMSP).size() < e.getValue().size()) maxMSP = e.getKey();
+                }
+                if (minMSP == null) minMSP = e.getKey();
+                else {
+                    if (cacheImpl.get(minMSP).size() > e.getValue().size()) minMSP = e.getKey();
+                }
+            }
+            out.write("ID, MethodName, count\n");
+
+            double av = 0;
+            Map<Integer, Integer> modeMap = new HashMap<>();
+            for(int i = 0; i < count.size(); i++){
+                out.write(String.format("M%s, %s, %s\n", i+1, methodName.get(i), count.get(i)));
+                av += count.get(i);
+                if (modeMap.containsKey(count.get(i))){
+                    modeMap.put(count.get(i), modeMap.get(count.get(i)) + 1);
+                } else {
+                    modeMap.put(count.get(i), 1);
+                }
+            }
+            out.write("\n");
+            out.write("SIZE,, "+ cacheImpl.size() + "\n");
+            out.write("MEAN,,"+ av/cacheImpl.size() + "\n");
+            out.write("MODE,, "+ Collections.max(modeMap.values()) + "\n");
+            out.write(String.format("MAX, %s, %s\n", maxMSP.getMethodName(), cacheImpl.get(maxMSP).size()));
+            out.write(String.format("MIN, %s, %s\n", minMSP.getMethodName(), cacheImpl.get(minMSP).size()));
+            out.flush();
+            out.close();
+        } catch (IOException e){
+            e.printStackTrace();
+        }
+
     }
 }
