@@ -100,10 +100,7 @@ public class InvParser {
 		while ( i.hasNext() )
         {
 			PptTopLevel ppt = i.next();
-//			System.out.println("\n== INV for " + ppt.toString() + " TYPE= " + ppt.type);
-//			for (Invariant _inv : ppt.invariants_vector()){
-//				System.out.println(_inv);
-//			}
+
 			if (isInComponent(ppt, compname))
 			{
 
@@ -211,9 +208,6 @@ public class InvParser {
 				}
 		}
 
-//		System.out.println("\n== PPT::ENTER " + entry.toString() + " TYPE= " + entry.type);
-//		System.out.println("== PPT::EXIT for " + ppt.toString() + " TYPE= " + ppt.type);
-
 		Iterator<Invariant> iv = entry.invariants_iterator();
 		while ( iv.hasNext() )
 		{
@@ -260,8 +254,6 @@ public class InvParser {
 	
 	private boolean isWorthPrinting(Invariant inv)
 	{
-
-
 		if (inv.isWorthPrinting())
 			return true;
 		

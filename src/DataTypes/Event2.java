@@ -2,6 +2,7 @@ package DataTypes;
 
 import java.util.ArrayList;
 
+import MTSGenerator2.Converter;
 import daikon.PptName;
 import daikon.inv.Invariant;
 
@@ -37,21 +38,29 @@ public class Event2 {
 	{
 		return name.getShortClassName().equals(name.getMethodName());
 	}
-	
+
+    // Natcha: modified to add only invariants Converter.java supports. check Converter.isProcessableInvariantType method for more details.
+    // In Converter we're also adding a Yices string version of invariant. This check is to keep the two invariants list consistent
+    // (i.e postCond and postCond_str consistent)
 	public void addPreCond(Invariant inv)
 	{
-		for (Invariant i : preCond)
-			if (i.isSameInvariant(inv))
-				return;
-		preCond.add(inv);
+		if (Converter.isProcessableInvariantType(inv)){
+            for (Invariant i : preCond)
+                if (i.isSameInvariant(inv))
+                    return;
+            preCond.add(inv);
+        }
+
 	}
 	
 	public void addPostCond(Invariant inv)
 	{
-		for (Invariant i : postCond)
-			if (i.isSameInvariant(inv))
-				return;
-		postCond.add(inv);
+        if (Converter.isProcessableInvariantType(inv)){
+            for (Invariant i : postCond)
+                if (i.isSameInvariant(inv))
+                    return;
+            postCond.add(inv);
+        }
 	}
 	
 	@SuppressWarnings("unchecked")

@@ -76,13 +76,19 @@ public class Initial_MTS_Generator {
 		// Initialize the predicate list
 		for (Event2 e : instance.eventList)
 		{
+			System.out.println("====");
+			System.out.println("NAME: " + e.getName());
+			System.out.println("pre: " + e.getPreCond_str());
+			System.out.println("====");
+
 			for (String inv : e.getPreCond_str())
 			{
 				//Constructors should not have preconditions
 				if(e.isConstructor()) continue;
 				
 				// Avoid predicates that involve method parameters
-				if(!inv.contains("arg0") && !inv.contains("arg1") && !inv.contains("arg2") && !inv.contains("arg3") && !inv.contains("arg4")
+				// [Natcha] added null check
+				if(inv!=null && !inv.contains("arg0") && !inv.contains("arg1") && !inv.contains("arg2") && !inv.contains("arg3") && !inv.contains("arg4")
 						&& !inv.contains("arg5") && !inv.contains("arg6") && !inv.contains("arg7") && !inv.contains("arg8") && !inv.contains("arg9")) 
 				{	
 					addToPredicateList(inv);
@@ -129,14 +135,6 @@ public class Initial_MTS_Generator {
 /*		processingStates.add(initialState);
 */		getMTSStates(0, processingStates, new ArrayList<String>());
 
-//		for (MTS_state s : processingStates){
-//			System.out.println(s.getName() + ": ");
-//			for(String vs : s.getVariableState()){
-//				System.out.println(vs + " ");
-//			}
-//			System.out.println();
-//		}
-//		System.exit(1);
 		//Processing Queue
 		Queue<MTS_state> processingQueue = new LinkedList<MTS_state>(); // array of all possible legit paths of pre-state invariants
 		

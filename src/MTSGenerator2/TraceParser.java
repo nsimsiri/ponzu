@@ -443,14 +443,14 @@ public class TraceParser {
 		@Override
 		public void process_sample(PptMap all_ppts, PptTopLevel ppt,ValueTuple vt, /*@Nullable*/ Integer nonce)
 		{
-            System.out.println("========");
-            System.out.println(ppt);
-            System.out.println("toplevel: " + ppt.varNames());
-			System.out.println("VT: " + vt.vals.length);
-            System.out.println(vt);
-            System.out.println("Enter nonce=" + nonce + " object_ID=" + vt.vals[0] + " ppt_name=" + ppt.name);
-            if (callLevel.containsKey(vt.vals[0])) System.out.println("call level: " + callLevel.get(vt.vals[0]));
-            System.out.println("========");
+//            System.out.println("========");
+//            System.out.println(ppt);
+//            System.out.println("toplevel: " + ppt.varNames());
+//			System.out.println("VT: " + vt.vals.length);
+//            System.out.println(vt);
+//            System.out.println("Enter nonce=" + nonce + " object_ID=" + vt.vals[0] + " ppt_name=" + ppt.name);
+//            if (callLevel.containsKey(vt.vals[0])) System.out.println("call level: " + callLevel.get(vt.vals[0]));
+//            System.out.println("========");
 
 //			for(PptTopLevel _ppt : all_ppts.ppt_all_iterable()){
 //				System.out.println(_ppt);
@@ -480,7 +480,10 @@ public class TraceParser {
 				
 				if (verbose)
 					System.out.println("Enter nonce=" + nonce + " object_ID=" + object_ID + " ppt_name=" + ppt.name);
+
+
 				// Only record external calls
+
 				if(callLevel.containsKey(object_ID))
 				{
 					if (callLevel.get(object_ID) == 0)
@@ -513,13 +516,15 @@ public class TraceParser {
 				{
 					// Check whether it is the constructor
 					String methodName = instance.component_name.substring(instance.component_name.lastIndexOf('.'));
-					if(!ppt.name().contains(methodName))
+					if(!ppt.ppt_name.isConstructor())
 					{
-						System.out.println("Unidentified or out-of-order event " + ppt.name()); // not an entering ppt, and not a constructor then quit reading this ppt.
+						System.out.println("Unidentified or out-of-order event " + ppt.name()
+                                + " i.e instance method called before constructor returns"); // not an entering ppt, and not a constructor then quit reading this ppt.
 						return;
 					}
 					//not entering ppt & constructor, we begin with 0 <-- new item point
 					callValue = new Long(0);
+                    System.out.println("==== FOUND CONSTRUCTOR: " + ppt + " OBJ= " + object_ID);
 					callLevel.put(object_ID, callValue); // will be subtracted to 0 below
 					newItem = true;
 				}
@@ -543,7 +548,6 @@ public class TraceParser {
 						System.out.println("This implies some degree of concurrency in the code.");
 						System.out.println("object_ID=" + object_ID + " entry.nonce=" + entry.nonce + " nonce=" + nonce);
 						badIDs.add(object_ID);
-                        System.exit(1);
 						return;
 					}
 					else if (entry == null)

@@ -42,14 +42,31 @@ public class Converter {
 			}
 		
 			// Convert the predicate list
+            // Natcha: null check for new Invariants (toYiceExpr doesn't support and gives null)
+
 			for (Event2 e : instance.events.values()) {
-				for (Invariant inv : e.getPreCond())
-					e.addPreCond(toYicesExpr(inv, true));
-				for (Invariant inv : e.getPostCond())
-					e.addPostCond(toYicesExpr(inv, false));
+				for (Invariant inv : e.getPreCond()){
+                    String invariantString = toYicesExpr(inv, true);
+                    if (invariantString != null)
+                        e.addPreCond(invariantString);
+                }
+
+				for (Invariant inv : e.getPostCond()){
+                    String invariantString = toYicesExpr(inv, false);
+                    if (invariantString != null)
+                        e.addPostCond(invariantString);
+                }
 			}
 		}
 	}
+
+    public static boolean isProcessableInvariantType(Invariant inv){
+        String class_str = inv.getClass().getCanonicalName();
+        boolean t = class_str.startsWith("daikon.inv.binary.twoScalar") ||
+                class_str.startsWith("daikon.inv.unary.scalar") ||
+                class_str.startsWith("daikon.inv.unary.scalar");
+        return t;
+    }
 	
 	public String toYicesExpr(Invariant inv, boolean isPre)
 	{

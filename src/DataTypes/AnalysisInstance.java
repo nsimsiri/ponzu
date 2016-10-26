@@ -66,17 +66,33 @@ public class AnalysisInstance {
 			pw.println("Preconditions:");
 			for (Invariant inv : e.getPreCond())
 			{
-				pw.println("   " + inv);
+				pw.println("   " + inv + " [type = " + inv.getClass().getCanonicalName());
 				//pw.println("   " + c.toYicesExpr(inv, true));
 				//checkDiscard(pw, inv);
 			}
+            pw.println("=================");
+            for (String inv : e.getPreCond_str())
+            {
+                pw.println("   " + inv);
+                //pw.println("   " + c.toYicesExpr(inv, true));
+                //checkDiscard(pw, inv);
+            }
+            pw.println("=================");
 			pw.println("Postconditions:");
 			for (Invariant inv : e.getPostCond())
 			{
-				pw.println("   " + inv);
+				pw.println("   " + inv + " [type = " + inv.getClass().getCanonicalName());
 				//pw.println("   " + c.toYicesExpr(inv, false));
 				//checkDiscard(pw, inv);
 			}
+            pw.println("=================");
+            for (String inv : e.getPostCond_str())
+            {
+                pw.println("   " + inv);
+                //pw.println("   " + c.toYicesExpr(inv, false));
+                //checkDiscard(pw, inv);
+            }
+            pw.println("=================");
 		}
 		
 		pw.println("\nVariables:");
@@ -96,7 +112,7 @@ public class AnalysisInstance {
 		pw.println("\nConstants:");
 		for (Map.Entry<String, String> entry : constants.entrySet())
 			pw.println(entry.getKey() + "=" + entry.getValue());
-		
+
 		pw.flush();
 		pw.close();
 	}
