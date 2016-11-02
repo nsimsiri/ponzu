@@ -19,7 +19,7 @@ import daikon.VarInfo;
 import daikon.inv.Invariant;
 
 public class Initial_MTS_Generator {
-	
+	private static int MAX_STATE_SIZE = 10000;
     public ArrayList<ArrayList<String>> predicateList;
     public ArrayList<String> objectInvariants;
     private Converter c;
@@ -38,7 +38,7 @@ public class Initial_MTS_Generator {
 		component_name = instance.component_name;
 		
 		// Define variables
-		yicesRun.defineVars(instance .var_names);
+		yicesRun.defineVars(instance.var_names);
 		
 		for(VarInfo variable : instance.variables)
 		{
@@ -74,11 +74,13 @@ public class Initial_MTS_Generator {
 		
 		System.out.println("\nPredicate List:");
 		// Initialize the predicate list
+        System.out.println("[PONZU]: number of events = " + instance.eventList.size());
 		for (Event2 e : instance.eventList)
 		{
 			System.out.println("====");
 			System.out.println("NAME: " + e.getName());
 			System.out.println("pre: " + e.getPreCond_str());
+			System.out.println("post: " + e.getPostCond_str());
 			System.out.println("====");
 
 			for (String inv : e.getPreCond_str())
@@ -132,8 +134,11 @@ public class Initial_MTS_Generator {
 */		
 		// Enumerate all possible states
 		ArrayList<MTS_state> processingStates = new ArrayList<MTS_state>();
-/*		processingStates.add(initialState);
-*/		getMTSStates(0, processingStates, new ArrayList<String>());
+/*		processingStates.add(initialState);*/
+        System.out.printf("[PONZU] begin MTS state creation (PredicateList: %s)\n", predicateList.size());
+        getMTSStates(0, processingStates, new ArrayList<String>());
+        System.out.println("[PONZU] DONE state creation");
+
 
 		//Processing Queue
 		Queue<MTS_state> processingQueue = new LinkedList<MTS_state>(); // array of all possible legit paths of pre-state invariants
@@ -188,7 +193,9 @@ public class Initial_MTS_Generator {
 		
 		
 		//Iterate through queue of unprocessed states
+        int count = 0;
 		while (!processingQueue.isEmpty()) {
+            System.out.printf("[PONZU]: %s/%s states processed.\n", count++, processingStates.size());
 			MTS_state currState = processingQueue.poll();
 			componentMTS.addMTSState(currState);
 			
@@ -203,7 +210,7 @@ public class Initial_MTS_Generator {
 			
 			for (Event2 event : instance.events.values()) {
 				
-				//Commented out because in very simple runs the pre/postconditions may
+				//Commented out because in very simple runs the preRTZ/postconditions may
 				// be empty even if the method has executed.
 				//if (event.getPostCond().isEmpty() && event.getPreCond().isEmpty())
 				//	continue;
@@ -222,18 +229,25 @@ public class Initial_MTS_Generator {
 						
 						yicesRun.push();
 						//Next State
+                        System.out.println("var_names: " + instance.var_names.size() + " varState: " + nextState.getVariableState().size());
 						yicesRun.assertExpr(appendPostAll(instance.var_names, nextState.getVariableState()));
 						yicesRun.assertExpr(event.getPostCond_str());
 						
 						if (!yicesRun.isInconsistent()) {
 							//yicesRun.dumpContext();
-							//System.out.println(currState.getVariableState());
-							//System.out.println("  "+eventList.get(i).getName()+" -> State "+nextState.getName());
+//                            System.out.println("\n\t"+event.getName()+" , State " + currState.getName() + " -> State "+nextState.getName());
+//							System.out.println("\tcurVar: " + currState.getVariableState());
+//                            System.out.println("\tnextVar: " + nextState.getVariableState());
+//							System.out.println("\tPostCond_str: " + event.getPostCond_str());
+//                            System.out.println("\tnextState_post:  " + instance.scenario.getInvocation(nextState.getName()).post_values);
+//                            System.out.println("\tcurrState_post:  " + instance.scenario.getInvocation(currState.getName()).post_values);
+//                            System.out.println("-----------------------");
 							//Add MTS Transition
 							assert(event.getPptName()!=null);
 							componentMTS.addMTSTransition(new MTS_transition(event.getPptName(), currState.getName(), nextState.getName(), "true"));
 							//Add to queue
 							if(!nextState.isProcessed()){
+                                count++;
 								nextState.setProcessed();
 								processingQueue.add(nextState);
 							}
@@ -267,8 +281,6 @@ public class Initial_MTS_Generator {
 			predicate.add(y);
 			predicate.add("(not " + y + ")");
 			predicateList.add(predicate);
-			
-			System.out.println(y);
 		}
 	}
 	
@@ -289,15 +301,23 @@ public class Initial_MTS_Generator {
 		}
 		return false;
 	}
-	
+
+    /***
+    // BOTTLE NECK FOR LARGE TRACES
 	// The recursion should be explained in comments, but it seems to work fine
 	// d goes through each predicate
 	// k goes through pred = true pred = false
 	/*
 	* pred in predlist are possible statements. This searches every paths (2^invs) for consistent invariant paths)
 	* */
+
 	public void getMTSStates(int d, ArrayList<MTS_state> states, ArrayList<String> tempState)
 	{
+        System.out.println(states.size() + "vtx, " + Runtime.getRuntime().totalMemory()/1000000 + " mb");
+
+        /* NATCHA: CAP SEARCH SPACE BEFORE YICES THROWS BAD ALLOC ERROR */
+        if (states.size() == MAX_STATE_SIZE) return;
+
 		if (d == predicateList.size()) {
 			states.add(new MTS_state(states.size() + 1, tempState));
 		}

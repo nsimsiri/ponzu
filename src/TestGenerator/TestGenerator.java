@@ -54,12 +54,15 @@ public class TestGenerator {
         String pptSignature = pptname.getSignature();
         String args = pptSignature.substring(pptSignature.indexOf("(")+1, pptSignature.indexOf(")"));
         String[] parsedSignatures = args.split(",");
+        System.out.println("find me");
+        System.out.println(pptSignature);
         List<String> signatures = new ArrayList<String>();
 
         // filter empty strings
         for(int i= 0; i < parsedSignatures.length;i++){
             if (parsedSignatures[i].length()>0) {
                 String removedSpaceSignature = parsedSignatures[i].replaceAll("\\s+","");
+                if (removedSpaceSignature.equals("double[][]")) removedSpaceSignature = double[][].class.getName();
                 signatures.add(removedSpaceSignature);
             }
         }

@@ -162,7 +162,7 @@ public class TraceParser {
 
 		ArrayList<MTS> outputMTSs = new ArrayList<MTS>();
 		outputMTSs.add(invariant_based_MTS);
-		(new outputResults()).outputToMTSA(outputMTSs, filepath + classname + "_inva_based_2" + ".lts");
+		(new outputResults(x)).outputToMTSA(outputMTSs, filepath + classname + "_inva_based_2" + ".lts");
 		(new outputResults()).outputToMTSADOT(outputMTSs, filepath + classname + "_inva_based_2" + ".dot");
 		memLook.apply(null);
 
@@ -200,8 +200,9 @@ public class TraceParser {
 */
 /* State Enhanced KTails (SEKT) ---------------------------------------------------------------------------------------------------
 */
-		 MTS enhancedKTailMTS = trace_analysis.kTailEnhanced(1);
-		 TraceAnalyzer.annotateTransitionWithInvariants(enhancedKTailMTS, x); outputMTSs = new ArrayList<MTS>();
+        MTS enhancedKTailMTS = trace_analysis.kTailEnhanced(1);
+        TraceAnalyzer.annotateTransitionWithInvariants(enhancedKTailMTS, x);
+        outputMTSs = new ArrayList<MTS>();
 
 		 outputMTSs.add(enhancedKTailMTS);
 		(new outputResults()).outputToMTSA(outputMTSs, filepath + classname + enhancedKTailMTS.getName() + ".lts");
@@ -370,6 +371,7 @@ public class TraceParser {
 	private HashMap<String, HashMap<String, Object>> lastTuples;
 	private AnalysisInstance instance;
 	private HashMap<Long, Long> callLevel = new HashMap<Long, Long>();
+    private int constructorStackCount = 0;
 
 	public TraceParser(String filename, String tracename, AnalysisInstance instance)
 	{
@@ -429,9 +431,7 @@ public class TraceParser {
 			this.nonce = nonce;
 		}
 	}
-	
-	
-	
+
 	private class TraceProcessor extends FileIO.Processor {
 
         /**
@@ -448,7 +448,7 @@ public class TraceParser {
 //            System.out.println("toplevel: " + ppt.varNames());
 //			System.out.println("VT: " + vt.vals.length);
 //            System.out.println(vt);
-//            System.out.println("Enter nonce=" + nonce + " object_ID=" + vt.vals[0] + " ppt_name=" + ppt.name);
+//            System.out.println("Enter nonce=" + nonce + " object_ID=" + vt.vals[0] + " ppt_name=" + ppt.name + " -- TYPE" + vt.vals[0].getClass().getSimpleName());
 //            if (callLevel.containsKey(vt.vals[0])) System.out.println("call level: " + callLevel.get(vt.vals[0]));
 //            System.out.println("========");
 
@@ -467,33 +467,42 @@ public class TraceParser {
 			}
 			if (ppt.is_enter())
 			{
-                // push entry ppt to stack (stack kept by callValue in callLevel map)
+                // Natcha: push entry ppt to stack (stack kept by callValue in callLevel map)
                 // callValue = 0 is outer most or where the test suite is making call.
 
-				if(vt.vals.length == 0)
-				{
-					return;
-				}
-				object_ID = (Long) vt.vals[0];
-				
-				if(badIDs.contains(object_ID)) return;
-				
-				if (verbose)
-					System.out.println("Enter nonce=" + nonce + " object_ID=" + object_ID + " ppt_name=" + ppt.name);
+                // NATCHA: (POTENTIAL BUGGY FIX), vt.vals[0] for constructors doesn't give Object ID but values for arguments of the
+                // constructor so we skip constructor::ENTER
+                // TODO: VERIFY THIS IS TRUE
+
+                if(vt.vals.length == 0)
+                {
+                    return;
+                }
+                if (!ppt.ppt_name.isConstructor()){
+                    object_ID = (Long) vt.vals[0];
+
+                    if(badIDs.contains(object_ID)) return;
+
+//                    if (verbose)
+//                        System.out.println("Enter nonce=" + nonce + " object_ID=" + object_ID + " ppt_name=" + ppt.name);
 
 
-				// Only record external calls
+                    // Only record external calls
 
-				if(callLevel.containsKey(object_ID))
-				{
-					if (callLevel.get(object_ID) == 0)
-					{
-						currentEntry.put(object_ID, new EntryInfo(ppt, vt, nonce));
-					}
-					Long callValue = callLevel.get(object_ID);
-					callValue++;
-					callLevel.put(object_ID, callValue);
-				}
+                    if(callLevel.containsKey(object_ID))
+                    {
+                        if (callLevel.get(object_ID) == 0)
+                        {
+                            currentEntry.put(object_ID, new EntryInfo(ppt, vt, nonce));
+                        }
+                        Long callValue = callLevel.get(object_ID);
+                        callValue++;
+                        callLevel.put(object_ID, callValue);
+                    }
+                } else {
+                    constructorStackCount++;
+//                    System.out.printf("[Ponzu]: %s | %s", constructorStackCount, ppt.ppt_name.getName());
+                }
 			}
 
 			else
@@ -516,15 +525,22 @@ public class TraceParser {
 				{
 					// Check whether it is the constructor
 					String methodName = instance.component_name.substring(instance.component_name.lastIndexOf('.'));
-					if(!ppt.ppt_name.isConstructor())
-					{
-						System.out.println("Unidentified or out-of-order event " + ppt.name()
-                                + " i.e instance method called before constructor returns"); // not an entering ppt, and not a constructor then quit reading this ppt.
+					if(!ppt.ppt_name.isConstructor()) {
+						System.out.println("[WARNING] Unidentified or out-of-order event " + ppt.name()); // not an entering ppt, and not a constructor then quit reading this ppt.
 						return;
 					}
-					//not entering ppt & constructor, we begin with 0 <-- new item point
+                    //exiting ppt & IS constructor, we begin with 0 <-- new item point, constructor exit contains object value.
+                    // first check if constructor is externally called.
+                    constructorStackCount--;
+                    if (constructorStackCount > 0){
+//                        System.out.printf("[WARNING] in nested Overloaded Constructor call (%s), skip ppt: %s\n", constructorStackCount,  ppt.name());
+                        return;
+                    }
+
+                    //found external constructor, we add object_id and proceed to trace parsing.
+//                    System.out.printf("[Ponzu]: FOUND %s | %s", constructorStackCount, ppt.ppt_name.getName());
+                    constructorStackCount = 0;
 					callValue = new Long(0);
-                    System.out.println("==== FOUND CONSTRUCTOR: " + ppt + " OBJ= " + object_ID);
 					callLevel.put(object_ID, callValue); // will be subtracted to 0 below
 					newItem = true;
 				}

@@ -391,15 +391,25 @@ public class TraceAnalyzer {
 			traversed_states.add(new Integer(currentState.getName()));
 			
 			ArrayList<Scenario2.Invocation> currentScenario = instance.scenario.getSequenceByID(currentID);
-					
+			System.out.println("=====================================");
+
+			System.out.println("TRACE ID: " + currentID);
+			for(int i = 0; i < currentScenario.size(); i++){
+				System.out.printf("\t(%s) %s\n", i+1, currentScenario.get(i).event.getName());
+			}
 			for (Invocation currentInvocation : currentScenario)
 			{
+                System.out.println("INVOC: " + currentInvocation.event.getName());
 				found_transition = false;
 	
 				ArrayList<MTS_transition> outgoing_transitions;
 				outgoing_transitions = invariant_MTS.getAllOutGoing(currentState.getName());
 				
 				ArrayList<MTS_state> candidateNextStates = new ArrayList<MTS_state>();
+
+				// find all vtx in invabased where incoming edge has the same event (method call).
+				// at least one state is from actual trace.
+				System.out.println(outgoing_transitions.size());
 				for(MTS_transition trans : outgoing_transitions)
 				{
 					if(trans.getEvent().equals(currentInvocation.event.getName()))
@@ -419,9 +429,11 @@ public class TraceAnalyzer {
 				
 				if(candidateNextStates.size() == 0 && found_constructor)
 				{
-					System.out.println(currentID + ": " + "There may be a problem in the trace or the invariant-based automaton because event " 
+					System.out.println("[WARNING]: " + currentID + ": " + "There may be a problem in the trace or the invariant-based automaton because event "
 							+ currentInvocation.event.getName() + " does not exist in state " + currentState.toString());
-					System.exit(-1);
+					System.out.printf("[SKIPPING TRACE] INFO: candidateNextStates.size() = %s && found_constructor = %s\n", candidateNextStates.size(), found_constructor);
+					break; // quick fix - Natcha
+//					System.exit(-1);
 				}
 				else if(candidateNextStates.size() == 0)
 				{
@@ -440,29 +452,46 @@ public class TraceAnalyzer {
 
 					if(yicesRun.isInconsistent()) {
 						yicesRun.pop();
-						System.out.println(currentID + ": " + "===There may be a problem in the trace or the invariant-based automaton because event "
+
+						System.out.println("[DetTrav ERR_2]: " + currentID + ": " + "There may be a problem in the trace or the invariant-based automaton because event "
 								+ currentInvocation.event.getName() + " does not exist in state " + currentState.toString());
-						System.exit(-1);
+						continue; // Natcha - ignore all errors.
+//						System.exit(-1);
 					}
-					System.out.println("before loop candidate States- found_trans: " + found_transition);
+					System.out.println("# Evaluating Candidate states: " + candidateNextStates.size());
 
 					for(MTS_state nextState : candidateNextStates)
 					{
 						yicesRun.push();
 						yicesRun.assertExpr(nextState.getVariableState());
 						boolean yicesResult = yicesRun.isInconsistent();
+						System.out.printf("\t %s -> notConsistent: %s (%s, %s)\n", nextState.getVariableState(), yicesResult, currentState.getName(), nextState.getName());
 
-						if(!found_transition && !yicesResult)
+						if(!found_transition && !yicesResult) // if transition not yet found and is consistent
 						{
 							currentState = nextState;
 							found_transition = true;
 							found_constructor = true;
 						}
-						else if(!yicesResult) numFound++;
+
+						/* Natcha: temporary fix problem (10/29/2016)*/
+//						else if(!yicesResult) {
+//							numFound++;
+//						}
 
 						yicesRun.pop();
 						/* [Natcha Simsiri] Line was initially commented out - which makes stackar not run - bringing back statement makes it work*/
 						if(found_transition) break;
+					}
+
+					/* Natcha's addition: if no nextState found, always add final candidate state*/
+					if (!found_transition){
+						currentState = candidateNextStates.get(candidateNextStates.size()-1);
+						System.out.println(currentID + ": "
+								+ "[WARNING] NOT FOUND CONSISTENT TRANSITION: adding inconsistent transition"
+								+ currentInvocation.event.getName() + " does not exist in state " + currentState.toString());
+						found_transition = true;
+						found_constructor = true;
 					}
 
 					yicesRun.pop();
@@ -470,9 +499,12 @@ public class TraceAnalyzer {
 				if(!found_transition || numFound > 0)
 				{
 	/*broken Here ---> (26/10) */
+
 					System.out.println(currentID + ": "
 					        + "EXITING: There may be a problem in the trace or the invariant-based automaton because event "
 							+ currentInvocation.event.getName() + " does not exist in state " + currentState.toString());
+					System.out.printf("found_trans=%s numFound=%s\n", found_transition, numFound);
+					System.out.println("# candidate state: " + candidateNextStates.size());
 					System.exit(-1);
 				}
 				
@@ -482,6 +514,7 @@ public class TraceAnalyzer {
 			}
 			
 			traversed_states_byID.put(currentID, traversed_states);
+			System.out.printf("ID: %s = %s", currentID, traversed_states);
 		}
 	}
 	
@@ -517,7 +550,6 @@ public class TraceAnalyzer {
 				}
 			}
 		}
-
 	}
 	
 	private int compareKTails(MTS model, MTS_state first, MTS_state second, int k)

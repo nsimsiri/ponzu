@@ -42,7 +42,11 @@ public class ModbatArgumentFormatter {
         return varStatementMap;
     }
 
-    // Forms string of series of arguments input ie. "x, y, z" to be used in the method call f(x,y,z)
+    /**
+     *Forms string of series of arguments input ie. "x, y, z" to be used in the method call f(x,y,z)
+     * **/
+    //
+
     public static String argListToString(List<String> argVariables){
 
         StringBuffer combinedArgs = new StringBuffer("");
@@ -92,7 +96,7 @@ public class ModbatArgumentFormatter {
             // .get(methodName)     -> List<Object> argument objects
             // .get(signatureIndex) -> Object of type corresponding to the signature index.
             String deserializeArgumentStr = String.format(
-                    "var %s: %s = %s.get(\"%s\", %s).get(%s).asInstanceOf[%s]",
+                    "var %s: %s = None.getOrElse(%s.get(\"%s\", %s).get(%s)).asInstanceOf[%s]",
                     varName,
                     signature,
                     this.cacheName,
@@ -120,9 +124,12 @@ public class ModbatArgumentFormatter {
     public String getStreamName() { return this.streamName; }
     public String getCacheName() { return this.cacheName; }
 
-    public static void main(String[] args){
-        ArgumentCacheStream stream = new ArgumentCacheStream("StackArObjectMap.ser");
-        IArgumentCache cacheMap = (IArgumentCache)stream.readObject();
-        System.out.println(cacheMap.toString());
+    public static void main(String[] args) throws Exception {
+//        ArgumentCacheStream stream = new ArgumentCacheStream("StackArObjectMap.ser");
+//        IArgumentCache cacheMap = (IArgumentCache)stream.readObject();
+//        System.out.println(cacheMap.toString());
+        System.out.println(double[][].class);
+        System.out.println(Class.forName("[[D"));
+        System.out.println(Double[][].class);
     }
 }

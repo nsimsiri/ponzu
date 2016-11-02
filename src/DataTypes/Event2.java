@@ -7,7 +7,7 @@ import daikon.PptName;
 import daikon.inv.Invariant;
 
 public class Event2 {
-	
+
 	//List of event preconditions and postconditions
 	private ArrayList<Invariant> preCond = new ArrayList<Invariant>();
 	private ArrayList<Invariant> postCond = new ArrayList<Invariant>();
@@ -41,26 +41,26 @@ public class Event2 {
 
     // Natcha: modified to add only invariants Converter.java supports. check Converter.isProcessableInvariantType method for more details.
     // In Converter we're also adding a Yices string version of invariant. This check is to keep the two invariants list consistent
-    // (i.e postCond and postCond_str consistent)
+    // LUL(i.e postCond and postCond_str consistent)
 	public void addPreCond(Invariant inv)
 	{
 		if (Converter.isProcessableInvariantType(inv)){
-            for (Invariant i : preCond)
-                if (i.isSameInvariant(inv))
-                    return;
-            preCond.add(inv);
-        }
-
+			for (Invariant i : preCond)
+				if (i.isSameInvariant(inv))
+					return;
+			preCond.add(inv);
+		}
 	}
 	
 	public void addPostCond(Invariant inv)
 	{
-        if (Converter.isProcessableInvariantType(inv)){
-            for (Invariant i : postCond)
-                if (i.isSameInvariant(inv))
-                    return;
-            postCond.add(inv);
-        }
+		if (Converter.isProcessableInvariantType(inv)){
+			for (Invariant i : postCond)
+				if (i.isSameInvariant(inv))
+					return;
+			postCond.add(inv);
+		}
+
 	}
 	
 	@SuppressWarnings("unchecked")

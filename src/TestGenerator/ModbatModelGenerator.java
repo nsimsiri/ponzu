@@ -118,6 +118,7 @@ public class ModbatModelGenerator {
      * given a PptName, returns an a string of combined argument variables i.e "param_0, param_1, param_2" such that each params' type matches
      * with the signature list from PptName's method signatures.
      *
+     *
      * @param ppt - program point, encodes methods and its type signatures and parameters' type signatures.
      * @param argVariables - variables associated with each statements. variables that is NULL_VAR corresponds to statements that were not assignment statements.
      *                       variables used as parameters to the functional call must be a parameter variable checked by calling ModbatArgumentFormatter.isAParamVariable function.
@@ -166,7 +167,7 @@ public class ModbatModelGenerator {
         List<String> argumentList = this.formAndProcessArgumentString(constructorPpt, argVariables, constructorLines, null);
         String combinedArgumentString = ModbatArgumentFormatter.argListToString(argumentList);
         constructorLines.add(String.format("%s = new %s(%s)", this.instanceName, constructorPpt.getMethodName(), combinedArgumentString));
-        constructorLines.add(String.format("println(\"%s %s\")", TRACE_MARKER, constructorPpt.getMethodName()));
+        constructorLines.add(String.format("println(\"%s %s(%s)\")", TRACE_MARKER, constructorPpt.getMethodName(), combinedArgumentString));
         return formFSMTransitionBlock(0, outGoingState, constructorLines);
     }
 

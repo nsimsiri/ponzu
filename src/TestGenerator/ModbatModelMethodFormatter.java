@@ -27,7 +27,8 @@ public class ModbatModelMethodFormatter {
             Class[] classList = new Class[methodSignatures.size()];
             for(int i = 0; i < methodSignatures.size(); i++) {
                 String typeName = methodSignatures.get(i);
-                classList[i] = ModbatModelUtilities.primitiveToClass.getOrDefault(typeName, Class.forName(typeName));
+                classList[i] = ModbatModelUtilities.primitiveToClass.containsKey(typeName) ?
+                        ModbatModelUtilities.primitiveToClass.get(typeName) : Class.forName(typeName);
             }
             reflectedMethod = instanceType.getDeclaredMethod(methodName, classList);
             isReflectedMethodPrivate = Modifier.isPrivate(reflectedMethod.getModifiers());

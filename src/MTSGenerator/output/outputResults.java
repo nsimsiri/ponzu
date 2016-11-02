@@ -7,6 +7,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import DataTypes.*;
+import daikon.VarInfo;
 import daikon.inv.Invariant;
 import org.apache.xml.serialize.XMLSerializer;
 import org.w3c.dom.Document;
@@ -16,7 +17,9 @@ import daikon.PptName;
 
 public class outputResults {
 
+	public AnalysisInstance instance;
 	public outputResults() {}
+	public outputResults(AnalysisInstance instance) {this.instance = instance;}
 	
 	//Writes component-level constraints to an XML file
 	public void outputComponentConstraints(ArrayList<Component> components, String path)
@@ -330,9 +333,22 @@ public class outputResults {
 						* */
 						if (currentTransition instanceof MTS_inv_transition){
 							Event2 event = ((MTS_inv_transition)currentTransition).getEventObject();
-							String invStr = String.format(" %s", event.getPreCond());
+							String invStr = String.format("\n\t\tPreCond:%s\n", event.getPreCond_str());
 							outputFile.write(invStr);
+                            outputFile.write(String.format("\n\t\tPostCond:%s\n", event.getPostCond_str()));
 						}
+
+//						if (this.instance!=null){
+//							StringBuffer xx = new StringBuffer("\n\t\t\tPOST-STATE:\n");
+//							Event2 event = ((MTS_inv_transition)currentTransition).getEventObject();
+//							Scenario2.Invocation currentInvocation = this.instance.scenario.getInvocation(currentTransition.getEnd());
+//							for (VarInfo var : instance.variables)
+//							{
+//								xx.append(String.format("\t\t\t%s = %s\n", var.name(), currentInvocation.get_post_value(var.name())));
+//							}
+//							outputFile.write(xx.toString());
+//						}
+
 
 						if(k != transitionsSet.size() - 1) outputFile.newLine();
 					}
