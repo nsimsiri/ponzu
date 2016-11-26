@@ -13,12 +13,14 @@ import com.sun.org.apache.xpath.internal.operations.Mod;
 import daikon.PptName;
 import daikon.inv.Invariant;
 import daikon.inv.binary.twoScalar.TwoScalar;
+import modbat.mbt.Modbat;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
+import java.util.stream.Collectors;
 
 /***
  * TestGenerator class
@@ -166,8 +168,10 @@ public class ModbatModelGenerator {
         ArrayList<String> argVariables = new ArrayList<String>(); // argument variable
         List<String> argumentList = this.formAndProcessArgumentString(constructorPpt, argVariables, constructorLines, null);
         String combinedArgumentString = ModbatArgumentFormatter.argListToString(argumentList);
+        String stringifiedArgumentString = ModbatArgumentFormatter.argListToString(argumentList.stream().map((String x) -> "$"+x).collect(Collectors.toList()));
+        constructorLines.add(String.format("println(s\"%s %s(%s)\")", TRACE_MARKER, constructorPpt.getMethodName(), stringifiedArgumentString));
         constructorLines.add(String.format("%s = new %s(%s)", this.instanceName, constructorPpt.getMethodName(), combinedArgumentString));
-        constructorLines.add(String.format("println(\"%s %s(%s)\")", TRACE_MARKER, constructorPpt.getMethodName(), combinedArgumentString));
+
         return formFSMTransitionBlock(0, outGoingState, constructorLines);
     }
 
@@ -198,6 +202,10 @@ public class ModbatModelGenerator {
             argCreationStatements.add(assertionFormatter.getInstancePreVarsFormat());
         }
 
+        //print to log file
+        String stringifiedArgumentString = ModbatArgumentFormatter.argListToString(argumentList.stream().map((String x) -> "$"+x).collect(Collectors.toList()));
+        argCreationStatements.add(String.format("println(s\"%s %s(%s)\")", TRACE_MARKER, methodPpt.getMethodName(), stringifiedArgumentString));
+
         //METHOD CALLED! make invocation and add arguments. Use formFSMTransitionBlock to format the transition block.
         ModbatModelMethodFormatter methodFormatter = new ModbatModelMethodFormatter(this.instanceName, this.clazz);
         String argumentListVariable = ModbatArgumentFormatter.getSignatureArrayVariable(argStatementMap);
@@ -209,9 +217,6 @@ public class ModbatModelGenerator {
             argCreationStatements.add(assertionFormatter.getInstancePostVarsFormat());
             argCreationStatements.add(assertionFormatter.getInvariantTesterAssertionFormat());
         }
-
-        //print to log file
-        argCreationStatements.add(String.format("println(\"%s\")", methodPpt.getMethodName()));
 
         //process and form assertions on method's post conditions
 //        System.out.format("[DEBUG INVAS for %s]:\n", methodPpt.getMethodName());

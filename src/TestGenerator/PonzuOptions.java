@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Created by NatchaS on 3/2/16.
@@ -21,12 +22,21 @@ public class PonzuOptions {
     public static boolean runModbat = false;
 
     public static final String SUT_COMMAND_FLAG="SUT_COMMAND";
+
     public static final String DEBUG_FLAG="--debug";
     public static final String DEBUG_CACHE_SPACE_FLAG="--debug-cache-space";
+    public static final String DEBUG_CACHE_METHOD = "--debug-cache-method";
+    public static final String DEBUG_METHOD = "--method";
+
     public static final String TEST_CLASS_FLAG="--test-class";
     public static final String MODBAT_CONFIG_FLAG= "--modbat-cfg";
     public static final String TEST_SUITES_FLAG="--tests";
     public static final String SER_TEST = "--sertest"; // test cache deserialization.
+
+    public static final String MODBAT_N = "--modbat-n";
+    public static final String MODBAT_S = "--modbat-s";
+    public static final String MODBAT_COMPILE = "--modbat-c";
+
 
     public static final String JUNIT_RUNNER = "org.junit.runner.JUnitCore";
 
@@ -97,6 +107,13 @@ public class PonzuOptions {
         return sb.toString();
     }
 
+    public String getModbatNumberOfTests(){
+        return this.optionMap.getOrDefault(MODBAT_N, "100");
+    }
+
+    public String getModbatSeed(){return this.optionMap.get(MODBAT_S);}
+    public boolean hasModbatSeed(){ return this.optionMap.containsKey(MODBAT_S);}
+
     public String getFullTestClassname(){
         return this.testClassname;
     }
@@ -105,16 +122,23 @@ public class PonzuOptions {
         return this.optionMap.containsKey(DEBUG_FLAG);
     }
     public boolean isDebugCacheSpace() { return this.optionMap.containsKey(DEBUG_CACHE_SPACE_FLAG);}
+    public boolean isDebugCacheMethod() { return this.optionMap.containsKey(DEBUG_CACHE_METHOD) && this.optionMap.containsKey(DEBUG_METHOD);}
+
 
     public String getDebugFile(){
         return this.optionMap.get(DEBUG_FLAG);
     }
     public String getDebugCacheSpaceFile() { return this.optionMap.get(DEBUG_CACHE_SPACE_FLAG);}
+    public Map<String, String> getDebugCacheMethod() {
+        Map<String, String> debugMethodMap = new HashMap<>();
+        debugMethodMap.put(DEBUG_CACHE_METHOD, this.optionMap.get(DEBUG_CACHE_METHOD));
+        debugMethodMap.put(DEBUG_METHOD, this.optionMap.get(DEBUG_METHOD));
+        return debugMethodMap;
+    }
 
     public boolean isTestingCacheDeserialization(){
         return this.optionMap.containsKey(SER_TEST);
     }
-
 
     public final List<String> loadTestCommands() {
         if (this.optionMap.containsKey(TEST_SUITES_FLAG)) {
@@ -132,6 +156,14 @@ public class PonzuOptions {
         }
         // no test suite command file found,
         return Arrays.asList(new String[]{this.optionMap.get(SUT_COMMAND_FLAG)});
+    }
+
+    public boolean isCompilingScalaModel(){
+        if (optionMap.containsKey(MODBAT_COMPILE)){
+            Boolean b = new Boolean(optionMap.get(MODBAT_COMPILE));
+            return b;
+        }
+        return true;
     }
 
     public final String loadModbatConfig(String modbatModelName, String binDirname, String errDirname){
@@ -152,10 +184,15 @@ public class PonzuOptions {
             }
         }
         // default modbat commandline arguments
-        String modbatOptStr = String.format("--classpath=./%s %s --log-path=%s --loop-limit=50 -n=100", binDirname, modbatModelName, errDirname);
-//        if (verbose) System.out.println(modbatOptStr);
+        String modbatOptStr = String.format("--classpath=./%s %s --log-path=%s --loop-limit=50 -n=%s",
+                binDirname,
+                modbatModelName,
+                errDirname,
+                getModbatNumberOfTests());
+        if (hasModbatSeed()){
+            modbatOptStr += String.format(" -s=%s", getModbatSeed());
+        }
         return modbatOptStr;
-//     return Arrays.asList(modbatOptStr.split(" "));
     }
 
     public final String loadModbatFile(){

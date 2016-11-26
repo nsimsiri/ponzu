@@ -1,8 +1,11 @@
 package DataTypes;
 
+import daikon.VarInfo;
+
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,6 +33,14 @@ public class Scenario2 {
 		{
 			return convert_to_long(post_values.get(varname));
 		}
+
+		public boolean has_post_var(String varname){
+            return post_values.containsKey(varname);
+        }
+
+        public boolean has_pre_var(String varname){
+            return pre_values.containsKey(varname);
+        }
 		
 		/*public String get_pre_value_str(String varname)
 		{
@@ -55,6 +66,7 @@ public class Scenario2 {
 	
 	public Invocation addInvocation(String ID, Event2 event, Map<String, Object> pre_values, Map<String, Object> post_values)
 	{
+		System.out.printf("[DELETE] %s\nPRE: %s\nPOST: %s\n\n", event.getName(), pre_values, post_values);
 		Invocation i = new Invocation(event, pre_values, post_values);
 		eventList.add(i);
 		
@@ -141,7 +153,7 @@ public class Scenario2 {
 				// For each trace, loop over events and write each one
 				for (String key : eventListByID.keySet()) {
 					for (Invocation inv : eventListByID.get(key)) {
-						out.println(key + " /// " + inv.event.getPptName().getMethodName());
+						out.printf("%s /// %s -> %s\n", key, inv.event.getPptName().getMethodName(), inv.post_values);
 					}
 				}
 				out.close();
@@ -150,7 +162,62 @@ public class Scenario2 {
 				System.exit(-1);
 			}
 		}
+
 	}
+
+    public void printInvocationGraphDotFile(String filepath, AnalysisInstance instance){
+        PrintStream out = null;
+        try {
+
+            boolean isConst = true;
+            for(String key : eventListByID.keySet()){
+                out = new PrintStream(filepath + "trace-" + key + ".dot");
+                out.println("digraph Trace {");
+                int cur = 0;
+                for(Invocation inv : eventListByID.get(key)){
+                    String pre_node = "";
+                    if (isConst){
+                        for(String var : inv.pre_values.keySet()){
+                            pre_node+=var + ": "+ inv.pre_values.get(var)+"\n";
+                        }
+                        isConst = false;
+                        out.printf("S%s[label=\"%s\"];\n", cur , inv.pre_values.isEmpty() ? String.format("%s \n{ empty pre-values }", key) : pre_node);
+                    }
+                    String node_inf = "";
+
+                    for (VarInfo var : instance.variables) {
+						if (inv.has_post_var(var.name())){
+							node_inf+=var + ": "+ inv.get_post_value(var.name()) +"\n";
+						}
+                    }
+                    out.printf("S%s[label=\"%s\"];\n", cur+1 ,node_inf);
+                    String name = inv.event.getPptName().getMethodName();
+                    if (inv.event.getName().contains(":::")){
+                        String[] name_spl = inv.event.getName().split(":::");
+                        name+=":::"+name_spl[name_spl.length-1].replace("\"", "");
+                    }
+                    String preCondStr = "";
+                    String postCondStr = "";
+                    for(String preCond : inv.event.getPreCond_str()){
+                        preCondStr+="\n"+preCond;
+                    }
+                    for(String postCond : inv.event.getPostCond_str()){
+                        postCondStr += "\n"+postCond;
+                    }
+
+                    out.printf("S%s -> S%s [label=\"%s\nPRE-COND:%s\nPOST-COND:%s\"];\n", cur, cur+1, name, preCondStr, postCondStr);
+                    cur+=1;
+                }
+                cur+=1;
+                isConst = true;
+                out.println("\n}");
+                out.close();
+            }
+        } catch (Exception e){
+            e.printStackTrace();
+            System.exit(-1);
+        }
+    }
 
 	public int getLength() {
 		return eventList.size();
@@ -159,6 +226,10 @@ public class Scenario2 {
 	public Set<String> getSequenceIDs()
 	{
 		return eventListByID.keySet();
+	}
+
+	public List<Invocation> getInvocations(){
+		return  this.eventList;
 	}
 
 	public ArrayList<Invocation> getSequenceByID(String sequenceID) {

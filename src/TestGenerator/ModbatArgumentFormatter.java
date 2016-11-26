@@ -54,7 +54,7 @@ public class ModbatArgumentFormatter {
             // make sure the variable is a variable for the arguments
             if (ModbatArgumentFormatter.isAParamVariable(argVariables.get(i))){
                 combinedArgs.append(argVariables.get(i));
-                if (i<argVariables.size()-1) combinedArgs.append(",");
+                if (i<argVariables.size()-1) combinedArgs.append(", ");
             }
         }
         return combinedArgs.toString();

@@ -26,6 +26,7 @@ import org.checkerframework.checker.initialization.qual.UnderInitialization;
 import java.io.IOException;
 import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -369,6 +370,7 @@ public class UniversalTypeAdapterFactory implements TypeAdapterFactory {
                 .enableComplexMapKeySerialization()
                 .setPrettyPrinting()
                 .serializeSpecialFloatingPointValues()
+                .excludeFieldsWithModifiers(Modifier.STATIC) // exclude only static, this removes exlcusion of transient fields
                 .create();
         return gson;
     }

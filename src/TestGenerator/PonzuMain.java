@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -51,12 +52,17 @@ public class PonzuMain {
 
         if (args.length>0){
             PonzuOptions options = PonzuOptions.processArguments(args);
+            // QUICK DEBUGS
             if (options.isDebug()){
                 checkArgCache(options.getDebugFile(), null);
                 System.exit(0);
-            }
-            if (options.isDebugCacheSpace()){
+            } else if (options.isDebugCacheSpace()){
                 checkArgSpaceUsage(options.getDebugCacheSpaceFile());
+                System.exit(0);
+            } else if (options.isDebugCacheMethod()){
+                Map<String, String> debugFileMethodMap = options.getDebugCacheMethod();
+                checkCacheForMethod(debugFileMethodMap.get(PonzuOptions.DEBUG_CACHE_METHOD), null,
+                                    debugFileMethodMap.get(PonzuOptions.DEBUG_METHOD), null);
                 System.exit(0);
             }
 
@@ -228,38 +234,42 @@ public class PonzuMain {
 
         Runtime runTime = Runtime.getRuntime();
         try {
-            if (errFile.exists()) {
-                if (verbose) System.out.println("deleting " + errFile);
-                FileUtils.deleteDirectory(errFile);
-            }
-            if (binFile.exists()) {
-                if (verbose) System.out.println("deleting " + binFile);
-                FileUtils.deleteDirectory(binFile);
-            }
-            if (!errFile.mkdir() || !binFile.mkdir()){
-                System.out.println("[PONZU] unable to create bin/err directories for Modbat");
-                System.exit(1);
-            }
 
-            Process p0 = runTime.exec("scala -help");
-            p0.waitFor();
-            if (p0.exitValue()!=0){
-                System.out.println("[PONZU ERROR] Scala 2.11.x not found, please install. ");
-                System.exit(1);
-            }
             File modbatLog = new File("modbat-log.txt");
-            String compileScala = String.format("scalac -d %s -cp %s %s", binFilename, classpath, scalaModelFilename_TEMP);
-            System.out.println("[PONZU: compiling] " + compileScala);
+            if (options.isCompilingScalaModel()){
+                if (errFile.exists()) {
+                    if (verbose) System.out.println("deleting " + errFile);
+                    FileUtils.deleteDirectory(errFile);
+                }
+                if (binFile.exists()) {
+                    if (verbose) System.out.println("deleting " + binFile);
+                    FileUtils.deleteDirectory(binFile);
+                }
+                if (!errFile.mkdir() || !binFile.mkdir()){
+                    System.out.println("[PONZU] unable to create bin/err directories for Modbat");
+                    System.exit(1);
+                }
 
-            ProcessBuilder pb_compile = new ProcessBuilder(compileScala.split(" "));
-            pb_compile.redirectErrorStream(true);
-            pb_compile.redirectError(modbatLog);
-            pb_compile.redirectOutput(modbatLog);
-            Process p1 = pb_compile.start();
-            p1.waitFor();
-            if (p1.exitValue()!=0){
-                System.out.println("[PONZU ERROR] unable to compile modbat model");
-                System.exit(1);
+                Process p0 = runTime.exec("scala -help");
+                p0.waitFor();
+                if (p0.exitValue()!=0){
+                    System.out.println("[PONZU ERROR] Scala 2.11.x not found, please install. ");
+                    System.exit(1);
+                }
+
+                String compileScala = String.format("scalac -d %s -cp %s %s", binFilename, classpath, scalaModelFilename_TEMP);
+                System.out.println("[PONZU: compiling] " + compileScala + "\n");
+
+                ProcessBuilder pb_compile = new ProcessBuilder(compileScala.split(" "));
+                pb_compile.redirectErrorStream(true);
+                pb_compile.redirectError(modbatLog);
+                pb_compile.redirectOutput(modbatLog);
+                Process p1 = pb_compile.start();
+                p1.waitFor();
+                if (p1.exitValue()!=0){
+                    System.out.println("[PONZU ERROR] unable to compile modbat model");
+                    System.exit(1);
+                }
             }
 
             String modbatOption = options.loadModbatConfig(modelName_TEMP, binFilename, errFilename);
@@ -305,6 +315,8 @@ public class PonzuMain {
     }
 
     private static void checkArgSpaceUsage(String serFile){
+        int MAX_COUNT = 10000; //limit number of objects per method
+
         Function<Void, Void> memLook = (Void v) -> {
             Runtime rt = Runtime.getRuntime();
             System.out.printf("\n----MEMORY USAGE----\nFree=%s bytes\nMax=%s bytes\nTotal=%s bytes\n\n", rt.freeMemory(), rt.maxMemory(), rt.totalMemory());
@@ -321,11 +333,11 @@ public class PonzuMain {
         while(it.hasNext()){
             Map.Entry<MethodSignaturesPair, List<List<ArgumentObjectInfo>>> e = it.next();
             System.out.println(e.getKey());
-            int count = 5;
+
             Iterator<List<ArgumentObjectInfo>> it2 = e.getValue().iterator();
             while(it2.hasNext()){
                 List<ArgumentObjectInfo> params = it2.next();
-                if (count > 0){
+                if (MAX_COUNT > 0){
                     StringBuilder sb = new StringBuilder("(");
                     for(ArgumentObjectInfo aoi : params){
                         Object aoi_obj = aoi.getObject_();
@@ -335,7 +347,7 @@ public class PonzuMain {
                     }
                     sb.append(")");
                     System.out.println("\t" + sb.toString());
-                    count--;
+                    MAX_COUNT--;
                 } else {
 //                    it2.remove();
                 }
@@ -345,6 +357,57 @@ public class PonzuMain {
 //        RandomizedArgumentMap m = new RandomizedArgumentMap(cacheImpl);
 //        ArgumentCacheStream acs = new ArgumentCacheStream(serFile);
 //        acs.writeObject(m);
+    }
+
+    private static void checkCacheForMethod(String serFile, String name, String methodName, String[] sigs){
+        if (name == null) name = ArgumentCacheStream.splitDefaultNaming(serFile);
+        System.err.printf("Check method: %s for %s\n", methodName, serFile);
+        ArgumentCacheStream stream = new ArgumentCacheStream(serFile);
+        IArgumentCache cacheMap = (IArgumentCache)stream.readObject();
+        RandomizedArgumentMap realCacheMap = (RandomizedArgumentMap)cacheMap;
+        Map<MethodSignaturesPair, List<List<ArgumentObjectInfo>>> cacheImpl = realCacheMap.getCacheMap();
+
+        HashSet<MethodSignaturesPair> methodWithInputName = new HashSet();
+        for(MethodSignaturesPair msp : cacheImpl.keySet()){
+            if (msp.getMethodName().equals(methodName)){
+                methodWithInputName.add(msp);
+            }
+        }
+        for(MethodSignaturesPair key : methodWithInputName){
+            List<List<ArgumentObjectInfo>> value = cacheImpl.get(key);
+            System.out.println(key);
+            for(List<ArgumentObjectInfo> params : value){
+                StringBuilder sb = new StringBuilder("(");
+                for(ArgumentObjectInfo aoi : params){
+                    Object aoi_obj = aoi.getObject_();
+                    String aoi_obj_classname = "null_classname";
+                    if (aoi_obj != null) aoi_obj_classname = aoi_obj.getClass().getSimpleName();
+                    sb.append(String.format("[%s %s], ", aoi_obj, aoi_obj_classname));
+                }
+                sb.append(")");
+                System.out.println("\t" + sb.toString());
+            }
+        }
+        System.out.printf("\n=========== OBSERVING OBJECTS ============\n");
+
+        for(MethodSignaturesPair key : methodWithInputName){
+            List<List<ArgumentObjectInfo>> value = cacheImpl.get(key);
+            System.out.println("\n\nKEY: " + key);
+            int i = 1;
+            for(List<ArgumentObjectInfo> params : value){
+                StringBuilder sb = new StringBuilder("PARAM SET " + i++ + ":\n");
+                for(ArgumentObjectInfo aoi : params){
+                    Object aoi_obj = aoi.getObject_();
+                    String aoi_obj_classname = "null_classname";
+                    if (aoi_obj != null) {
+                        aoi_obj_classname = aoi_obj.getClass().getSimpleName();
+                    }
+                    sb.append(String.format("\n-------\n%s\n%s\n---------\n], ",aoi_obj_classname, aoi.getSerializedObject()));
+                }
+                sb.append("\n");
+                System.out.println(sb.toString());
+            }
+        }
     }
 
     private static void checkArgCache(String serFile, String name){

@@ -12,6 +12,7 @@ import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 
 import java.io.IOException;
+import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
@@ -118,6 +119,7 @@ public class ClassRetrievalAdapterFactory implements TypeAdapterFactory {
         GsonBuilder gb = new GsonBuilder()
                 .serializeNulls()
                 .enableComplexMapKeySerialization()
+                .excludeFieldsWithModifiers(Modifier.STATIC)
                 .serializeSpecialFloatingPointValues();
 
         gb.setFieldNamingStrategy(new UniversalTypeAdapterFactory.DuplicateFieldNamingStrategy());

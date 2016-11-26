@@ -545,6 +545,22 @@ public class UniversalTypeAdapterFactoryTest {
         Collection<Number> B = UniversalTypeAdapterFactory.deserialize(json, A.getClass(), gson);
         System.out.println(B);
     }
+
+    public static class TransientO {
+        public int i ;
+        public transient String x;
+        public TransientO(int i, String x){
+            this.x = x;
+            this.i = 2;
+        }
+    }
+
+    public static void TransientTest(){
+        TransientO t = new TransientO(5, "hello");
+        Gson gson = buildGson(t);
+        String json = gson.toJson(t);
+        System.out.println(json);
+    }
     public static void main(String args[]){
         try {
             testSpecialDoubleValue();
@@ -563,6 +579,7 @@ public class UniversalTypeAdapterFactoryTest {
             GregorianCalendarTest();
             CycleDecimalFormat();
             nullCollection();
+            TransientTest();
 
         } catch (Exception e){
             e.printStackTrace();

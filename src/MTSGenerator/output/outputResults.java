@@ -400,20 +400,31 @@ public class outputResults {
 				HashMap<String, String> compMap = new HashMap<String, String>();
 				outputFile.write(String.format("digraph %s { ", currentMTS.getName()));
 				ArrayList<MTS_state> states = currentMTS.getAllStates();
+
+                for(int j = 0; j < states.size(); j++){
+                    MTS_state cur = states.get(j);
+                    if (cur.getName() != 0){
+                        String stateStr = String.format("S%s[label=\"S%s\n%s\"];", cur.getName(), cur.getName(), cur.getVariableState());
+                        outputFile.newLine();
+                        outputFile.write(stateStr);
+                    }
+                }
+
 				for(int j = 0; j < states.size(); j++){
 					MTS_state currentState = states.get(j);
 					if (currentMTS.isUnreachable(currentState.getName())) continue;
 					ArrayList<MTS_transition> transitions = currentMTS.getAllOutGoing(currentState.getName());
 					for(int k = 0; k < transitions.size(); k++){
 						MTS_transition currentTransition = transitions.get(k);
-						String invarString = "";
+						String invarString = "\n";
 						if (currentTransition instanceof MTS_inv_transition){
 							Event2 event = ((MTS_inv_transition) currentTransition).getEventObject();
-							ArrayList<Invariant> postInvs = event.getPostCond();
-							for(int ii = 0; ii < postInvs.size(); ii++){
-								invarString += postInvs.get(ii).toString();
-								if (ii < postInvs.size()-1) invarString+=",\n";
-							}
+							List<String> preInvStrs = event.getPreCond_str();
+                            for(int ii = 0; ii < preInvStrs.size(); ii++){
+                                invarString += preInvStrs.get(ii);
+                                if (ii < preInvStrs.size()-1) invarString+=",\n";
+                            }
+                            System.out.printf("[OUTPUT] %s : %s\n", event.getName(), invarString);
 						}
 
 						assert(currentTransition.getName()!=null);
@@ -429,7 +440,7 @@ public class outputResults {
 						if (!compMap.containsKey(edgeStr)) compMap.put(edgeStr, pptName+invarString);
 						else{
 							String prevPptName = compMap.get(edgeStr);
-							prevPptName += ("\n" + pptName);
+							prevPptName += ("\n" + pptName+invarString);
 							compMap.put(edgeStr, prevPptName);
 						}
 					}

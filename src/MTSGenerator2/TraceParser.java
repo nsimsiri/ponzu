@@ -155,6 +155,7 @@ public class TraceParser {
 		//Ponzu evaluation - output intitial traces for eval.
 //		InvocationSequence.outputTraceGraph(x.eventList, filepath+classname + "_trace_graph.log");
 		x.scenario.dumpInvocation(filepath+tracename+"_trace.log", false);
+		x.scenario.printInvocationGraphDotFile(filepath, x);
 
 		Initial_MTS_Generator init_gen = new Initial_MTS_Generator();
 		MTS invariant_based_MTS = init_gen.generateInitialMTS(x);
@@ -208,6 +209,7 @@ public class TraceParser {
 		(new outputResults()).outputToMTSA(outputMTSs, filepath + classname + enhancedKTailMTS.getName() + ".lts");
 		(new outputResults()).outputToMTSADOT(outputMTSs,filepath + classname + enhancedKTailMTS.getName()+ ".dot");
 
+		// Generating Scala model for mobbat.
 		ModbatModelGenerator modbadGen = new ModbatModelGenerator(enhancedKTailMTS, packagename, classname);
 		modbadGen.ouputScalaModel(filepath, packagename);
 

@@ -107,7 +107,7 @@ public class ArgumentObjectInfo implements Serializable {
             e.printStackTrace();
             this.object_ = null;
         }
-        this.serializedObject = null;
+//        this.serializedObject = null;
     }
 
     private static void __examine_obj__ (Object o){

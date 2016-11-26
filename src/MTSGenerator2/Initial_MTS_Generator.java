@@ -74,14 +74,14 @@ public class Initial_MTS_Generator {
 		
 		System.out.println("\nPredicate List:");
 		// Initialize the predicate list
-        System.out.println("[PONZU]: number of events = " + instance.eventList.size());
+        System.out.printf("[PONZU]: number of events = %s\n", instance.eventList.size());
 		for (Event2 e : instance.eventList)
 		{
-			System.out.println("====");
+			System.out.println("\nEVENT: " + e.getName());
 			System.out.println("NAME: " + e.getName());
 			System.out.println("pre: " + e.getPreCond_str());
 			System.out.println("post: " + e.getPostCond_str());
-			System.out.println("====");
+
 
 			for (String inv : e.getPreCond_str())
 			{
@@ -92,10 +92,11 @@ public class Initial_MTS_Generator {
 				// [Natcha] added null check
 				if(inv!=null && !inv.contains("arg0") && !inv.contains("arg1") && !inv.contains("arg2") && !inv.contains("arg3") && !inv.contains("arg4")
 						&& !inv.contains("arg5") && !inv.contains("arg6") && !inv.contains("arg7") && !inv.contains("arg8") && !inv.contains("arg9")) 
-				{	
+				{
 					addToPredicateList(inv);
 				}
 			}
+            System.out.println("====");
 		}
 		
 		// Create initial state of the MTS
@@ -210,10 +211,10 @@ public class Initial_MTS_Generator {
 			
 			for (Event2 event : instance.events.values()) {
 				
-				//Commented out because in very simple runs the preRTZ/postconditions may
+				// Commented out because in very simple runs the pre/postconditions may
 				// be empty even if the method has executed.
-				//if (event.getPostCond().isEmpty() && event.getPreCond().isEmpty())
-				//	continue;
+				// if (event.getPostCond().isEmpty() && event.getPreCond().isEmpty())
+				// continue;
 
 				if (event.isConstructor())
 					continue;
@@ -221,27 +222,54 @@ public class Initial_MTS_Generator {
 				yicesRun.push();
 				//Add Event expressions
 				yicesRun.assertExpr(event.getPreCond_str());
+
 				if (!yicesRun.isInconsistent()) {
 					for (MTS_state nextState : processingStates) {
-						
 						if (nextState.equals(initialState))
 							continue;
-						
+
+//						System.out.printf("\n\t%s: \n\t%s -> %s",event.getName(),currState.getName(), nextState.getName());
+//						System.out.println("\tcurVar: " + currState.getVariableState());
+//						System.out.println("\tPreCond_str: " + event.getPreCond_str());
+//						System.out.println("\tnextVar: " + nextState.getVariableState());
+//						System.out.println("\tPostCond_str: " + event.getPostCond_str());
+//						System.out.println("\tscenario size = " + instance.scenario.getInvocations().size());
+//						System.out.println("\tcurState_post:  " + instance.scenario.getInvocation(currState.getName()).post_values);
+//						System.out.println("\tnextState_post:  " + instance.scenario.getInvocation(nextState.getName()).post_values);
+
 						yicesRun.push();
-						//Next State
-                        System.out.println("var_names: " + instance.var_names.size() + " varState: " + nextState.getVariableState().size());
 						yicesRun.assertExpr(appendPostAll(instance.var_names, nextState.getVariableState()));
 						yicesRun.assertExpr(event.getPostCond_str());
-						
+
+						// put more constraint in building model - Natcha Simsiri
+						// first find the Invocation object that contains pre/post values.
+						/*
+						Scenario2.Invocation currentInvocation = null;
+                        List<Scenario2.Invocation> invocations = instance.scenario.getInvocations();
+                        System.out.println("[DELETE]: " + invocations);
+                        System.out.println("[DELETE]: " + event);
+                        for(int ie = 0; ie < invocations.size(); ie++){
+                            if (event.equals(invocations.get(ie).event)){
+								currentInvocation = invocations.get(ie);
+							}
+						}
+						String str;
+                        if (currentInvocation != null){
+                            System.out.println("[DELETE] invocation found: " + currentInvocation.event.getName());
+                            for (VarInfo var : instance.variables)
+                            {
+                                str = "(= " + c.toYicesExpr(var, true) + " "
+                                        + c.toYicesExpr(currentInvocation.get_post_value(var.name())) + ")";
+                                System.out.println("\t evaluating " + str);
+                                yicesRun.assertExpr(str);
+                            }
+                        } else System.out.println("[DELETE] cannot find invocation: " + event.getName());
+                        */
+
 						if (!yicesRun.isInconsistent()) {
 							//yicesRun.dumpContext();
-//                            System.out.println("\n\t"+event.getName()+" , State " + currState.getName() + " -> State "+nextState.getName());
-//							System.out.println("\tcurVar: " + currState.getVariableState());
-//                            System.out.println("\tnextVar: " + nextState.getVariableState());
-//							System.out.println("\tPostCond_str: " + event.getPostCond_str());
-//                            System.out.println("\tnextState_post:  " + instance.scenario.getInvocation(nextState.getName()).post_values);
-//                            System.out.println("\tcurrState_post:  " + instance.scenario.getInvocation(currState.getName()).post_values);
-//                            System.out.println("-----------------------");
+
+
 							//Add MTS Transition
 							assert(event.getPptName()!=null);
 							componentMTS.addMTSTransition(new MTS_transition(event.getPptName(), currState.getName(), nextState.getName(), "true"));
@@ -251,7 +279,9 @@ public class Initial_MTS_Generator {
 								nextState.setProcessed();
 								processingQueue.add(nextState);
 							}
+							System.out.println("Invariants Satisfied");
 						}
+						System.out.println("-----------------------");
 						yicesRun.pop();
 					} //End state iteration
 				}
