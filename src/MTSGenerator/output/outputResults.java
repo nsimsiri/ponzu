@@ -404,9 +404,11 @@ public class outputResults {
                 for(int j = 0; j < states.size(); j++){
                     MTS_state cur = states.get(j);
                     if (cur.getName() != 0){
-                        String stateStr = String.format("S%s[label=\"S%s\n%s\"];", cur.getName(), cur.getName(), cur.getVariableState());
-                        outputFile.newLine();
-                        outputFile.write(stateStr);
+						if (!currentMTS.getAllOutGoing(cur.getName()).isEmpty() && !currentMTS.getAllIncoming(cur.getName()).isEmpty()){
+							String stateStr = String.format("S%s[label=\"S%s\n%s\"];", cur.getName(), cur.getName(), cur.getVariableState());
+							outputFile.newLine();
+							outputFile.write(stateStr);
+						}
                     }
                 }
 

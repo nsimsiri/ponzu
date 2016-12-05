@@ -6,7 +6,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
 import java.util.Set;
+import java.util.Stack;
 
 import DataTypes.AnalysisInstance;
 import DataTypes.Event2;
@@ -17,6 +21,7 @@ import DataTypes.MTS_transition;
 import DataTypes.Scenario2;
 import DataTypes.Scenario2.Invocation;
 import daikon.VarInfo;
+import javafx.scene.Scene;
 
 public class TraceAnalyzer {
 	
@@ -38,7 +43,8 @@ public class TraceAnalyzer {
 		this.invariant_MTS = invariant_MTS;
 		this.yicesRun = yicesRun;
 		this.conv = conv;
-		
+
+//        checkTraversalOrderAndTerminateSystem();
 		determineTraversalOrder();
 		createTraceMTS();
 	}
@@ -377,10 +383,33 @@ public class TraceAnalyzer {
 		kTailModel.addToUnreachable(secondState.getName());
 	}
 
+    private void checkTraversalOrderAndTerminateSystem(){
+        for(String currentID : instance.scenario.getSequenceIDs()){
+            MTS_state currentState = invariant_MTS.getInitialState();
+            ArrayList<MTS_state> invariant_MTS_states = invariant_MTS.getAllStates();
+            boolean found_constructor = false;
+            boolean found_transition;
+            String str;
+
+            ArrayList<Integer> traversed_states = new ArrayList<Integer>();
+            traversed_states.add(new Integer(currentState.getName()));
+
+            ArrayList<Scenario2.Invocation> currentScenario = instance.scenario.getSequenceByID(currentID);
+            System.out.println("=====================================");
+
+            System.out.println("TRACE ID: " + currentID);
+            for(int i = 0; i < currentScenario.size(); i++){
+                System.out.printf("\t(%s) %s\n", i+1, currentScenario.get(i).event.getName());
+            }
+
+            checkTraceIsEmbeddedInInvaBasedModel(currentScenario, currentID);
+        }
+        System.exit(-1);
+    }
+
 	private void determineTraversalOrder()
 	{
-		for(String currentID : instance.scenario.getSequenceIDs())
-		{
+		for(String currentID : instance.scenario.getSequenceIDs()) {
 			MTS_state currentState = invariant_MTS.getInitialState();
 			ArrayList<MTS_state> invariant_MTS_states = invariant_MTS.getAllStates();
 			boolean found_constructor = false;
@@ -391,60 +420,56 @@ public class TraceAnalyzer {
 			traversed_states.add(new Integer(currentState.getName()));
 			
 			ArrayList<Scenario2.Invocation> currentScenario = instance.scenario.getSequenceByID(currentID);
-			System.out.println("=====================================");
 
-			System.out.println("TRACE ID: " + currentID);
+            Queue<MTS_state_wrapper> q = new LinkedList<>();
+            Queue<MTS_state_wrapper> qTemp = new LinkedList<>();
+            q.add(new MTS_state_wrapper(currentState, null)); // first state in queue
+
+			System.out.println("[PONZU] TRACE ID: " + currentID);
 			for(int i = 0; i < currentScenario.size(); i++){
 				System.out.printf("\t(%s) %s\n", i+1, currentScenario.get(i).event.getName());
 			}
 
-			for (Invocation currentInvocation : currentScenario)
-			{
-                System.out.println("INVOC: " + currentInvocation.event.getName());
+			for(int i = 0; i < currentScenario.size(); i++){
+                Invocation currentInvocation = currentScenario.get(i);
+                System.out.println("INVOC %s " + currentInvocation.event.getName());
 				found_transition = false;
-	
+
 				ArrayList<MTS_transition> outgoing_transitions;
 				outgoing_transitions = invariant_MTS.getAllOutGoing(currentState.getName());
-				
+
 				ArrayList<MTS_state> candidateNextStates = new ArrayList<MTS_state>();
 
 				// find all vtx in invabased where incoming edge has the same event (method call).
 				// at least one state is from actual trace.
-				System.out.println(outgoing_transitions.size());
-				for(MTS_transition trans : outgoing_transitions)
-				{
-					if(trans.getEvent().equals(currentInvocation.event.getName()))
-					{
-						for(MTS_state st : invariant_MTS_states)
-						{
-							if(st.getName() == trans.getEnd())
-							{
+				for(MTS_transition trans : outgoing_transitions) {
+					if(trans.getEvent().equals(currentInvocation.event.getName())) {
+						for(MTS_state st : invariant_MTS_states) {
+							if(st.getName() == trans.getEnd()) {
 								candidateNextStates.add(st);
 							}
 						}
 					}
 				}
-				
+
 				int numFound = 0;
 				//yicesRun.reset();
-				
-				if(candidateNextStates.size() == 0 && found_constructor)
-				{
+
+				if(candidateNextStates.size() == 0 && found_constructor) {
 					System.out.println("[DetTrav ERR_2]: " + currentID + ": " + "There may be a problem in the trace or the invariant-based automaton because event "
 							+ currentInvocation.event.getName() + " does not exist in state " + currentState.toString());
 					System.out.printf("[SKIPPING TRACE] INFO: candidateNextStates.size() = %s && found_constructor = %s\n", candidateNextStates.size(), found_constructor);
 					break; // quick fix - Natcha
 //					System.exit(-1);
 				}
-				else if(candidateNextStates.size() == 0)
-				{
+
+				else if(candidateNextStates.size() == 0) {
 					continue;
 				}
-				else if(candidateNextStates.size() > 0)	// Further statements needed for variables that are unmodified.
-				{
+                // Further statements needed for variables that are unmodified.
+				else if(candidateNextStates.size() > 0) {
 					yicesRun.push();
-					for (VarInfo var : instance.variables)
-					{
+					for (VarInfo var : instance.variables) {
                         // we check if this variable is recorded in the trace - if not
 						if (currentInvocation.has_post_var(var.name())){
                             str = "(= " + conv.toYicesExpr(var, true) + " "
@@ -460,13 +485,13 @@ public class TraceAnalyzer {
 
 						System.out.println("[DetTrav ERR_2]: " + currentID + ": " + "There may be a problem in the trace or the invariant-based automaton because event "
 								+ currentInvocation.event.getName() + " does not exist in state " + currentState.toString());
-//						continue; // Natcha - ignore all errors.
-						System.exit(-1);
+						continue; // Natcha - ignore all errors.
+//						System.exit(-1);
 					}
+
 					System.out.println("# Evaluating Candidate states: " + candidateNextStates.size());
 
-					for(MTS_state nextState : candidateNextStates)
-					{
+					for(MTS_state nextState : candidateNextStates) {
 						yicesRun.push();
 						yicesRun.assertExpr(nextState.getVariableState());
 						boolean yicesResult = yicesRun.isInconsistent();
@@ -510,15 +535,78 @@ public class TraceAnalyzer {
 					System.out.println("# candidate state: " + candidateNextStates.size());
 					System.exit(-1);
 				}
-				
+
 				if (verbose)
 					System.out.println("Identified transition on " + currentInvocation.event.getName() + " to state " + currentState.toString());
 				traversed_states.add(new Integer(currentState.getName()));
 			}
-			
+
 			traversed_states_byID.put(currentID, traversed_states);
 			System.out.printf("ID: %s = %s", currentID, traversed_states);
 		}
+	}
+
+    public static class MTS_state_wrapper {
+        public MTS_state_wrapper prev;
+        public MTS_state state;
+        public MTS_transition edge;
+        public MTS_state_wrapper(MTS_state state, MTS_state_wrapper prev){
+            this.prev = prev;
+            this.state = state;
+        }
+    }
+
+	private void checkTraceIsEmbeddedInInvaBasedModel(List<Scenario2.Invocation> invocations, String scenarioID){
+		Queue<MTS_state_wrapper> q = new LinkedList<>();
+		int curInvocCount = 0;
+		MTS_state initState = invariant_MTS.getInitialState();
+        System.out.printf("[TestTrace]: ScenarioID = %s with invocation size = %s\n", scenarioID, invocations.size());
+		q.add(new MTS_state_wrapper(initState, null));
+
+        Queue<MTS_state_wrapper> qFinal = new LinkedList();
+
+		for (int i = 0; i < invocations.size(); i++){
+			Scenario2.Invocation invocation = invocations.get(i);
+
+            Queue<MTS_state_wrapper> tempQ = new LinkedList<>();
+
+            while(!q.isEmpty()){
+                MTS_state_wrapper curWrapperState = q.poll();
+
+                MTS_state curState = curWrapperState.state;
+                List<MTS_transition> outgoing_transitions = invariant_MTS.getAllOutGoing(curState.getName());
+
+                for(MTS_transition trans : outgoing_transitions) {
+                    if(trans.getEvent().equals(invocation.event.getName())) {
+                        for(MTS_state st : invariant_MTS.getAllStates()) {
+                            if(st.getName() == trans.getEnd()) {
+                                MTS_state_wrapper nextStateWrapper = new MTS_state_wrapper(st, curWrapperState);
+                                tempQ.add(nextStateWrapper);
+                                if (i==invocations.size()-1){
+                                    qFinal.add(nextStateWrapper);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (tempQ.isEmpty() && i < invocations.size()-1) {
+                System.out.println("[TEST TRACE ERR] Queue is empty before finishing Trace. Currently at " + invocation.event.getName());
+                return;
+            }
+            while(!tempQ.isEmpty()) q.add(tempQ.poll());
+		}
+
+//        for(MTS_state_wrapper msw : qFinal){
+//            int c = invocations.size();
+//            MTS_state_wrapper curW = msw;
+//            System.out.printf("\n\t[%s] ", c--);
+//            while(curW != null){
+//                System.out.printf("S%s ",curW.state.getName());
+//                curW = curW.prev;
+//            }
+//        }
+        System.out.printf("[TEST TRACE] there are %s traces found from InvaBased.\n", qFinal.size());
 	}
 	
 	private void createTraceMTS()
