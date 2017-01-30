@@ -281,6 +281,7 @@ public class InvParser {
 		if (class_str.startsWith("daikon.inv.binary.twoScalar"))
 		{
 			TwoScalar ts = (TwoScalar) inv;
+			System.out.format("[InvParser: %s] var1=%s var2=%s\n", inv.getClass().getName(), ts.var1(), ts.var2());
 			boolean first = addAllVarsAndCheckPrestate(ts.var1());
 			boolean second = addAllVarsAndCheckPrestate(ts.var2());
 			return first && second;
@@ -288,6 +289,7 @@ public class InvParser {
 		if (class_str.startsWith("daikon.inv.ternary.threeScalar"))
 		{
 			ThreeScalar ts = (ThreeScalar) inv;
+            System.out.format("[InvParser: %s] var1=%s var2=%s var3=%s\n", inv.getClass().getName(), ts.var1(), ts.var2(), ts.var3());
 			boolean first = addAllVarsAndCheckPrestate(ts.var1());
 			boolean second = addAllVarsAndCheckPrestate(ts.var2());
 			boolean third = addAllVarsAndCheckPrestate(ts.var3());
@@ -296,12 +298,14 @@ public class InvParser {
 		if (class_str.startsWith("daikon.inv.unary.scalar"))
 		{
 			SingleScalar ss = (SingleScalar) inv;
+            System.out.format("[InvParser: %s] var1=%s\n", inv.getClass().getName(), ss.var());
 			return addAllVarsAndCheckPrestate(ss.var());
 		}
 		
 		if (class_str.contains("Implication"))
 		{
 			Implication imp = (Implication) inv;
+            System.out.format("[InvParser: %s] var1=%s var2=%s\n", inv.getClass().getName(), imp.predicate(), imp.consequent());
 			boolean antecedent = addAllVarsAndCheckPrestate(imp.predicate());
 			boolean consequent = addAllVarsAndCheckPrestate(imp.consequent());
 			return antecedent && consequent;

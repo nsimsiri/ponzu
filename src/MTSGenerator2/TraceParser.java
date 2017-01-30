@@ -114,6 +114,7 @@ public class TraceParser {
 		x.printInvariants(filepath + classname + "-INV.txt");
 
 		System.out.println("Invariants Parsed...");
+		System.exit(1);
 		
 		// ---- NFST ----
 		// new TraceParser(filepath + "StringTokenizerDaCapo.dtrace.gz", "1", x);

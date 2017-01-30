@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 * */
 public class ModbatModelGenerator {
     public static boolean verbose = true;
-    public static boolean makeInvariantAssertion = true;
+    public static boolean makeInvariantAssertion = false;
 
     private MTS mts;
     private String instanceName;

@@ -53,7 +53,4 @@ public class InvariantsChecker {
     }
     public Map<String, Object> getPreVarMap(){ return this.preVarMap; }
     public Map<String, Object> getPostVarMap(){ return this.postVarMap; }
-
-
-
 }

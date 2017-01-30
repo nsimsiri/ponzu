@@ -16,7 +16,9 @@ import java.util.Map;
  *
  * <p> Encapsulates invariant checking process by parsing out the Daikon invariant string.
  * The invariant string comes in the format of [left-var] [comparison symbol] [right-var],
- * i.e orig(size(this.theArray[..])) < size(this.theArray[..]) </p>
+ * i.e orig(size(this.theArray[..])) < size(this.theArray[..]). Information related to
+ * parsing daikon invariant string can be found here: https://plse.cs.washington.edu/daikon/download/doc/daikon.html#Interpreting-output
+ * </p>
  *
  * @author Natcha Simsiri
  *

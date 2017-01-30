@@ -66,7 +66,6 @@ public class Scenario2 {
 	
 	public Invocation addInvocation(String ID, Event2 event, Map<String, Object> pre_values, Map<String, Object> post_values)
 	{
-		System.out.printf("[DELETE] %s\nPRE: %s\nPOST: %s\n\n", event.getName(), pre_values, post_values);
 		Invocation i = new Invocation(event, pre_values, post_values);
 		eventList.add(i);
 		
