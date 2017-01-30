@@ -38,7 +38,6 @@ public class ModbatModelMethodFormatter {
             e.printStackTrace();
         }
 
-
         String methodLine = "";
         if (isReflectedMethodPrivate){
             /*

@@ -1,7 +1,9 @@
 package TestGenerator;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -15,6 +17,7 @@ public class InvariantsChecker {
     public InvariantsChecker(String[] invariantStrings){
         this.invariantStrings = invariantStrings;
         this.invariantTesters = new TestInvariant[invariantStrings.length];
+        List<String> invariantTestersTemp = new ArrayList<>();
         for(int i =0; i < invariantStrings.length; i++){
             this.invariantTesters[i] = new TestInvariant(invariantStrings[i]);
         }

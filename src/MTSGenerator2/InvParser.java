@@ -103,7 +103,6 @@ public class InvParser {
 
 			if (isInComponent(ppt, compname))
 			{
-
 				switch (ppt.type)
 				{
 				// If this program point contains class or object invariants; add invariants to objInvariants list
