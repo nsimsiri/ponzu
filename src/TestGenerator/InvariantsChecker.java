@@ -13,13 +13,13 @@ public class InvariantsChecker {
     private String[] invariantStrings;
     private HashMap<String, Object> preVarMap;
     private HashMap<String, Object> postVarMap;
-    private TestInvariant[] invariantTesters;
+    private InvariantAnalyzer[] invariantTesters;
     public InvariantsChecker(String[] invariantStrings){
         this.invariantStrings = invariantStrings;
-        this.invariantTesters = new TestInvariant[invariantStrings.length];
+        this.invariantTesters = new InvariantAnalyzer[invariantStrings.length];
         List<String> invariantTestersTemp = new ArrayList<>();
         for(int i =0; i < invariantStrings.length; i++){
-            this.invariantTesters[i] = new TestInvariant(invariantStrings[i]);
+//            this.invariantTesters[i] = new InvariantAnalyzer(invariantString);
         }
         this.preVarMap = new HashMap<>();
         this.postVarMap = new HashMap<>();
@@ -40,7 +40,7 @@ public class InvariantsChecker {
     }
 
     public void makeAssertions(){
-        for(TestInvariant invariantTester : this.invariantTesters){
+        for(InvariantAnalyzer invariantTester : this.invariantTesters){
             invariantTester.makeAssertion(this.preVarMap, this.postVarMap);
         }
     }

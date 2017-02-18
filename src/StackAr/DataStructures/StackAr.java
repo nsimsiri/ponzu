@@ -24,8 +24,9 @@ import java.util.List;
  * Array-based implementation of the stack.
  * @author Mark Allen Weiss
  */
-public class StackAr
+public class StackAr implements Serializable
 {
+    private static final long serialVersionUID = 1L;
     /**
      * Construct the stack.
      */

@@ -1,11 +1,16 @@
 package TestGenerator;
 
+import MTSGenerator2.Converter;
+import daikon.VarInfo;
+import daikon.VarInfoName;
 import daikon.inv.Invariant;
-import org.apache.commons.bcel6.verifier.statics.DOUBLE_Upper;
+import org.apache.commons.lang3.math.NumberUtils;
 
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -23,7 +28,7 @@ import java.util.Map;
  * @author Natcha Simsiri
  *
  */
-public class TestInvariant {
+public class InvariantAnalyzer {
     private Invariant inv;
     private String leftVarStr;
     private String rightVarStr;
@@ -38,19 +43,16 @@ public class TestInvariant {
             "<"
     }); //order must be kept.
 
-    public TestInvariant(){
+    public InvariantAnalyzer(){
         this.inv = null;
     }
-    public TestInvariant(Invariant inv){
-        this(inv.toString());
-        this.inv = inv;
-    }
 
-    /* Constructor
-    *
-    * @param invStr (required) Daikon Invariant Object's String, format stated above (orig(size(this.theArray[..])) < size(this.theArray[..])
-    * */
-    public TestInvariant(String invStr){
+    public InvariantAnalyzer(Invariant inv){
+        if (!Converter.isProcessableInvariantType(inv)){
+            throw new IllegalArgumentException("Cannot parse invariant of type: " + inv.getClass());
+        }
+
+        String invStr = inv.toString();
         String[] invParts = null;
         String comparator = "";
         for(String _comparator : comparatorSet){
@@ -70,7 +72,7 @@ public class TestInvariant {
         this.leftVarStr = invParts[0];
         this.equalityStr = comparator;
         this.rightVarStr = invParts[1];
-
+        this.inv = inv;
     }
 
     @Override
@@ -219,9 +221,210 @@ public class TestInvariant {
         return exp.split("[\\[\\]]");
     }
 
+    /**
+     * VarInfoName parser. VarInfoName is the "name" of the VarInfo - the terms that composes an Invariant object.
+     * This method recursively maps each operation on a "name" to an action on the real object during test generation.
+     */
+
+    public static class VarInfoParser {
+        public Invariant inv;
+        public VarInfo varInfo;
+        public VarInfoName varName;
+
+        public VarInfoParser(Invariant inv, VarInfo var){
+            this.inv = inv;
+            this.varInfo = var;
+            this.varName = varInfo.get_VarInfoName();
+        }
+
+        public static String parse_print(VarInfoName varName){
+            if (varName instanceof VarInfoName.Simple){
+                VarInfoName.Simple vn = (VarInfoName.Simple)varName;
+                return String.format("(0 %s)", vn.name);
+            } else if (varName instanceof VarInfoName.Add){
+                VarInfoName.Add vn = (VarInfoName.Add)varName;
+                return String.format("(1 %s + %s)", parse_print(vn.term), vn.amount);
+            } else if (varName instanceof VarInfoName.SizeOf){
+                VarInfoName.SizeOf vn = (VarInfoName.SizeOf)varName;
+                return String.format("(2 |%s|)", parse_print(vn.sequence));
+            } else if (varName instanceof VarInfoName.Poststate){
+                VarInfoName.Poststate vn = (VarInfoName.Poststate)varName;
+                return String.format("(3 post[%s])", parse_print(vn.term));
+            } else if (varName instanceof VarInfoName.Prestate){
+                VarInfoName.Prestate vn = (VarInfoName.Prestate)varName;
+                return String.format("(4 pre[%s])", parse_print(vn.term));
+            } else if (varName instanceof VarInfoName.Field){
+                VarInfoName.Field vn = (VarInfoName.Field)varName;
+                return String.format("(5 %s->%s)", parse_print(vn.term), vn.field);
+            } else if (varName instanceof VarInfoName.Elements) {
+                VarInfoName.Elements vn = (VarInfoName.Elements)varName;
+                return String.format("(6 Array(%s))", parse_print(vn.term));
+            } else if (varName instanceof VarInfoName.Subscript){
+                VarInfoName.Subscript vn = (VarInfoName.Subscript)varName;
+                return String.format("(7 %s[%s]", vn.sequence, vn.index);
+            } else if (varName instanceof VarInfoName.Slice){
+                VarInfoName.Slice vn = (VarInfoName.Slice)varName;
+                return String.format("(8 %s[%s:%s]", vn.sequence, vn.i, vn.j);
+            } else {
+                return  String.format("(%s %s)", varName.getClass().getSimpleName(), varName);
+            }
+        }
+
+        public Object parse(Map<String, Object> origMap, Map<String, Object> postMap) throws IllegalStateException {
+            Map<String, Object> objectMap = (this.varInfo.isPrestate()) ? origMap : postMap;
+            return this._parse(this.varName, objectMap);
+        }
+
+
+        /**
+         * Parses values from the invariants given the object instance.
+         * */
+        private Object _parse(VarInfoName varName, Map<String, Object> objectMap) throws IllegalStateException {
+            if (varName instanceof VarInfoName.Simple){
+                // parses simple name
+                VarInfoName.Simple baseName = (VarInfoName.Simple)varName;
+                if (this.varInfo.isThis() && baseName.name.equals(VarInfoName.THIS.name())){
+                    // case "this" -> returns instance
+                    return objectMap.get(VarInfoName.THIS.name());
+                } else if (baseName.isLiteralConstant()){
+                    // case literal "a", "-1"
+                    if (NumberUtils.isNumber(baseName.name)) return Integer.parseInt(baseName.name);
+                    return baseName.name;
+                } else if (objectMap.containsKey(baseName.name)){
+                    // case name for something
+                    return objectMap.get(baseName.name);
+                }
+
+            } else if (varName instanceof VarInfoName.Add){
+                // expects a number to be returned for an add.
+                VarInfoName.Add vn = (VarInfoName.Add)varName;
+                Object returnVal = _parse(vn.term, objectMap);
+                if (returnVal instanceof Number){
+                    Integer value = ((Number)returnVal).intValue();
+                    return value + vn.amount;
+                }
+
+            } else if (varName instanceof VarInfoName.SizeOf){
+                // expects a sequence to be returned
+                VarInfoName.SizeOf vn = (VarInfoName.SizeOf)varName;
+                Object sequenceObj = _parse(vn.sequence, objectMap);
+                if (sequenceObj.getClass().isArray()){
+                    return ((Object[])sequenceObj).length;
+                } else if (sequenceObj instanceof Collection){
+                    return ((Collection)sequenceObj).size();
+                }
+
+            } else if (varName instanceof VarInfoName.Poststate){
+                VarInfoName.Poststate vn = (VarInfoName.Poststate)varName;
+                return _parse(vn.term, objectMap);
+
+            } else if (varName instanceof VarInfoName.Prestate){
+                VarInfoName.Prestate vn = (VarInfoName.Prestate)varName;
+                return _parse(vn.term, objectMap);
+
+            } else if (varName instanceof VarInfoName.Field){
+                VarInfoName.Field vn = (VarInfoName.Field)varName;
+                // is static
+                if (this.varInfo.isStaticConstant()){
+                    try {
+                        Class<?> clazz = Class.forName(vn.term.name());
+                        return _get_static_field(clazz, vn.field);
+                    } catch(ClassNotFoundException e){
+                        System.err.println(e.getMessage());
+                        throw new IllegalStateException(String.format("Expects a static field \"%s\" with map %s", varName, objectMap));
+                    }
+                } else if (objectMap.containsKey(vn.term)){
+                    return _get_object_field(objectMap.get(vn.term), vn.field);
+                }
+                return _get_object_field(_parse(vn.term, objectMap), vn.field);
+
+            } else if (varName instanceof VarInfoName.Elements) {
+                // returns the array/collection "sequence" from "sequence[]" string
+
+                VarInfoName.Elements vn = (VarInfoName.Elements)varName;
+                return _parse(vn.term, objectMap);
+
+            } else if (varName instanceof VarInfoName.Subscript){
+                // returns an element of sequence[index]
+
+                VarInfoName.Subscript vn = (VarInfoName.Subscript)varName;
+                Object sequenceObj = _parse(vn.sequence, objectMap);
+                Object indexObj = _parse(vn.index, objectMap);
+                Integer idx = _parse_index(indexObj);
+
+                if (idx!=null){
+                    if (sequenceObj.getClass().isArray()){
+                        return ((Object[]) sequenceObj)[idx];
+                    } else if (sequenceObj instanceof List<?>){
+                        return ((List<?>) sequenceObj).get(idx);
+                    }
+                }
+
+            } else if (varName instanceof VarInfoName.Slice){
+                // returns a subarray sequence[i:j]
+
+                VarInfoName.Slice vn = (VarInfoName.Slice)varName;
+                Integer idx_i = _parse_index(_parse(vn.i, objectMap));
+                Integer idx_j = _parse_index(_parse(vn.j, objectMap));
+                Object arrayObj = _parse(vn.sequence, objectMap);
+                if (idx_i != null && idx_j != null){
+                    if (arrayObj.getClass().isArray()){
+                        return Arrays.copyOfRange(((Object[]) arrayObj), idx_i, idx_j);
+                    } else if (arrayObj instanceof List<?>){
+                        return ((List<?>) arrayObj).subList(idx_i, idx_j);
+                    }
+                }
+            }
+
+            throw new IllegalStateException(String.format("cannot parse VarInfoName \"%s\" of type %s with Map %s\n",
+                    this.varName.toString(), this.varName.getClass().getSimpleName(),  objectMap));
+        }
+
+        private Integer _parse_index(Object indexObj){
+            Integer idx = null;
+            if (indexObj instanceof Number) idx = ((Number) indexObj).intValue();
+            else if (indexObj instanceof String) idx = Integer.parseInt((String) indexObj);
+            return idx;
+        }
+
+        private Object _get_static_field(Class<?> c, String fieldName){
+            try {
+                Field staticField = c.getDeclaredField(fieldName);
+                staticField.setAccessible(true);
+                return staticField.get(null);
+            } catch (NoSuchFieldException e){
+                e.printStackTrace();
+            } catch (IllegalAccessException e){
+                e.printStackTrace();
+            }
+            throw new IllegalArgumentException(String.format("Cannot find field \"%s\" in object type \"%s\".", fieldName, c));
+        }
+        private Object _get_object_field(Object o, String fieldName){
+            try {
+                Field field = o.getClass().getDeclaredField(fieldName);
+                field.setAccessible(true);
+                return field.get(o);
+            } catch (NoSuchFieldException e){
+                e.printStackTrace();
+            } catch (IllegalAccessException e){
+                e.printStackTrace();
+            }
+            throw new IllegalArgumentException(String.format("Cannot find field \"%s\" in object type \"%s\".", fieldName, o.getClass()));
+        }
+    }
+
+
+
     /* Unit test..sort of, kind of thing */
     public static void main(String[] args){
-        TestInvariant test = new TestInvariant();
+        VarInfoName x = VarInfoName.parse("A - 1");
+        System.out.println(x);
+        Collection<VarInfoName> xx = x.inOrderTraversal();
+        for(VarInfoName k : xx){
+            System.out.format("%s: %s", k.getClass().getSimpleName(), k);
+        }
+        /*
+        InvariantAnalyzer test = new InvariantAnalyzer();
         int[] a1 = new int[]{1,2,3};
         int a2 = 3;
         int a3 = 10;
@@ -260,17 +463,16 @@ public class TestInvariant {
         Number testExpr = (Number)test.parseAndEvaluateVar("size(this.theArray[..])-1", preMap, postMap);
         assert(testExpr.intValue() == Array.getLength(postMap.get("theArray"))-1);
 
-        TestInvariant test1 = new TestInvariant("size(this.theArray[..])-1 <= size(this.theArray[..])");
+        InvariantAnalyzer test1 = new InvariantAnalyzer("size(this.theArray[..])-1 <= size(this.theArray[..])");
         test1.makeAssertion(preMap, postMap);
 
-        TestInvariant test2 = new TestInvariant("size(this.theArray[..]) != orig(size(this.theArray[..]))");
+        InvariantAnalyzer test2 = new InvariantAnalyzer("size(this.theArray[..]) != orig(size(this.theArray[..]))");
         test2.makeAssertion(preMap, postMap);
 
-        TestInvariant test3 = new TestInvariant("this.topOfStack - orig(this.topOfStack) - 1 == 0");
+        InvariantAnalyzer test3 = new InvariantAnalyzer("this.topOfStack - orig(this.topOfStack) - 1 == 0");
         test3.makeAssertion(preMap, postMap);
 
         System.out.println("all invariants asserted");
-
-
+        */
     }
 }

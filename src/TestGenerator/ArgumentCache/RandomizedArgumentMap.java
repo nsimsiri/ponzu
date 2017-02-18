@@ -1,12 +1,15 @@
 package TestGenerator.ArgumentCache;
 
+import TestGenerator.Utility.RandomizedQueue;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.sun.org.apache.xpath.internal.Arg;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.io.*;
 import java.lang.reflect.Type;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -42,21 +45,60 @@ public class RandomizedArgumentMap implements Serializable, IArgumentCache {
         }
     }
 
-    public List<Object> get(MethodSignaturesPair key){
-        if (this.cacheMap.containsKey(key)) {
-            // randomizes cached object
-            List<List<ArgumentObjectInfo>> argList = this.cacheMap.get(key);
-            Random rand = new Random();
-            int randInt = rand.nextInt(argList.size());
-            return argList.get(randInt).stream().map(x->x.getObject_()).collect(Collectors.toList());
-        } else {
-            throw new NullPointerException("No such method name cached: " + key + ".");
-        }
+    public List<Object> get(String methodName, List<String> argumentType, List<Function<Object, Boolean>> argumentFilters){
+        MethodSignaturesPair key = MethodSignaturesPair.fromSignatureString(methodName, argumentType);
+        return _get(key, argumentFilters);
     }
 
     public List<Object> get(String methodName, List<String> argumentType){
-        MethodSignaturesPair key = MethodSignaturesPair.fromSignatureString(methodName, argumentType);
-        return this.get(key);
+        return this.get(methodName, argumentType, null);
+    }
+
+    private List<Object> _get(MethodSignaturesPair key, List<Function<Object, Boolean>> argumentFilters){
+        if (this.cacheMap.containsKey(key)) {
+            // randomizes cached object
+            Random rand = new Random();
+            List<List<ArgumentObjectInfo>> argList = this.cacheMap.get(key);
+
+            // argument filters passed
+            if (argumentFilters != null && !argumentFilters.isEmpty()){
+                List<Object> filteredArguments = new ArrayList<>();
+                for(int i = 0; i < argumentFilters.size(); i++){
+                    Function<Object, Boolean> filter = argumentFilters.get(i);
+                    rand.nextInt(argList.size());
+                    final int _i = i;
+                    Queue<Object> nArgRandQueue = new RandomizedQueue<Object>(
+                            argList
+                            .stream()
+                            .map((List<ArgumentObjectInfo> argList_i) -> argList_i.get(_i))
+                            .collect(Collectors.toList())
+                    );
+
+                    // iterate the RandomizedQueue, cont. next arg set if satisfiable
+                    boolean foundSatisfiableArg = false;
+                    while(!nArgRandQueue.isEmpty()){
+                        Object randElm_arg_i = nArgRandQueue.poll();
+                        if (foundSatisfiableArg = filter.apply(randElm_arg_i)){
+                            filteredArguments.add(randElm_arg_i);
+                            break;
+                        }
+                    }
+                    if (!foundSatisfiableArg){
+                        throw new NoSuchElementException(String.format("No elements from key: %s satisfies filter %s on element: %s\n", key, argumentFilters, i));
+                    }
+
+                }
+                return filteredArguments;
+            }
+
+            // no arg filters
+            return argList.get(rand.nextInt(argList.size()))
+                    .stream()
+                    .map(x->x.getObject_())
+                    .collect(Collectors.toList());
+        }
+
+        throw new NullPointerException("No such method name cached: " + key + ".");
     }
 
     public boolean contains(MethodSignaturesPair key){

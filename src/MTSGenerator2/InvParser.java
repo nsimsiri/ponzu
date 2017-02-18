@@ -9,6 +9,7 @@ import java.util.Random;
 import DataTypes.AnalysisInstance;
 import DataTypes.Event2;
 import DataTypes.Scenario2;
+import TestGenerator.InvariantAnalyzer;
 import daikon.FileIO;
 import daikon.PptMap;
 import daikon.PptRelation;
@@ -281,7 +282,12 @@ public class InvParser {
 		if (class_str.startsWith("daikon.inv.binary.twoScalar"))
 		{
 			TwoScalar ts = (TwoScalar) inv;
-			System.out.format("[InvParser: %s] var1=%s var2=%s\n", inv.getClass().getName(), ts.var1(), ts.var2());
+//			System.out.format("[InvParser: %s] var1=%s var2=%s\n", inv.getClass().getName(), ts.var1(), ts.var2());
+//			System.out.println("=> " + inv);
+//            if (ts.var1().isStaticConstant()) System.out.println("-> const " + ts.var1());
+//            if (ts.var2().isStaticConstant()) System.out.println("-> const " + ts.var2());
+//            System.out.format("\tV1: %s\n", InvariantAnalyzer.VarInfoParser.parse_print(ts.var1().get_VarInfoName()));
+//            System.out.format("\tV2: %s\n", InvariantAnalyzer.VarInfoParser.parse_print(ts.var2().get_VarInfoName()));
 			boolean first = addAllVarsAndCheckPrestate(ts.var1());
 			boolean second = addAllVarsAndCheckPrestate(ts.var2());
 			return first && second;
@@ -289,7 +295,8 @@ public class InvParser {
 		if (class_str.startsWith("daikon.inv.ternary.threeScalar"))
 		{
 			ThreeScalar ts = (ThreeScalar) inv;
-            System.out.format("[InvParser: %s] var1=%s var2=%s var3=%s\n", inv.getClass().getName(), ts.var1(), ts.var2(), ts.var3());
+//            System.out.format("[InvParser: %s] var1=%s var2=%s var3=%s\n", inv.getClass().getName(), ts.var1(), ts.var2(), ts.var3());
+//            System.out.println("=> " + inv);
 			boolean first = addAllVarsAndCheckPrestate(ts.var1());
 			boolean second = addAllVarsAndCheckPrestate(ts.var2());
 			boolean third = addAllVarsAndCheckPrestate(ts.var3());
@@ -298,18 +305,22 @@ public class InvParser {
 		if (class_str.startsWith("daikon.inv.unary.scalar"))
 		{
 			SingleScalar ss = (SingleScalar) inv;
-            System.out.format("[InvParser: %s] var1=%s\n", inv.getClass().getName(), ss.var());
+//            System.out.format("[InvParser: %s] var1=%s\n", inv.getClass().getName(), ss.var());
+//            System.out.println("=> " + inv);
+//            if (ss.var().isStaticConstant()) System.out.println("-> const " + ss.var());
+//            System.out.format("\tV1: %s\n", InvariantAnalyzer.VarInfoParser.parse_print(ss.var().get_VarInfoName()));
 			return addAllVarsAndCheckPrestate(ss.var());
 		}
 		
 		if (class_str.contains("Implication"))
 		{
 			Implication imp = (Implication) inv;
-            System.out.format("[InvParser: %s] var1=%s var2=%s\n", inv.getClass().getName(), imp.predicate(), imp.consequent());
+//            System.out.format("[InvParser: %s] var1=%s var2=%s\n", inv.getClass().getName(), imp.predicate(), imp.consequent());
 			boolean antecedent = addAllVarsAndCheckPrestate(imp.predicate());
 			boolean consequent = addAllVarsAndCheckPrestate(imp.consequent());
 			return antecedent && consequent;
 		}
+//        System.out.println("------------------------------------------------\n");
 		
 		return false;
 	}

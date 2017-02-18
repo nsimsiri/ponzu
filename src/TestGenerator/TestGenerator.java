@@ -143,12 +143,12 @@ public class TestGenerator {
                 if (currentTransition instanceof MTS_inv_transition) {
                     MTS_inv_transition invTransition = (MTS_inv_transition) currentTransition;
                     Event2 event = invTransition.getEventObject();
-                    ArrayList<TestInvariant> testInvariants = new ArrayList<TestInvariant>();
+                    ArrayList<InvariantAnalyzer> testInvariants = new ArrayList<InvariantAnalyzer>();
                     for (Invariant postCond : event.getPostCond()) {
                         if (verbose){
                             System.out.format("[%s] -> %s Slice.VAR_INFO: %s\n", postCond.toString(), postCond.varNames(), postCond.ppt.var_infos.length);
                         }
-                        TestInvariant testInv = new TestInvariant(postCond);
+                        InvariantAnalyzer testInv = new InvariantAnalyzer(postCond);
                         testInv.makeAssertion(origVarMap, varMap);
                     }
 

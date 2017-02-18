@@ -41,7 +41,7 @@ public class Event2 {
 
     // Natcha: modified to add only invariants Converter.java supports. check Converter.isProcessableInvariantType method for more details.
     // In Converter we're also adding a Yices string version of invariant. This check is to keep the two invariants list consistent
-    // LUL(i.e postCond and postCond_str consistent)
+    // (i.e postCond and postCond_str consistent)
 	public void addPreCond(Invariant inv)
 	{
 		if (Converter.isProcessableInvariantType(inv)){
