@@ -59,43 +59,48 @@ public class RandomizedArgumentMap implements Serializable, IArgumentCache {
             // randomizes cached object
             Random rand = new Random();
             List<List<ArgumentObjectInfo>> argList = this.cacheMap.get(key);
-
             // argument filters passed
-            if (argumentFilters != null && !argumentFilters.isEmpty()){
-                List<Object> filteredArguments = new ArrayList<>();
-                for(int i = 0; i < argumentFilters.size(); i++){
-                    Function<Object, Boolean> filter = argumentFilters.get(i);
-                    rand.nextInt(argList.size());
-                    final int _i = i;
-                    Queue<Object> nArgRandQueue = new RandomizedQueue<Object>(
-                            argList
-                            .stream()
-                            .map((List<ArgumentObjectInfo> argList_i) -> argList_i.get(_i))
-                            .collect(Collectors.toList())
-                    );
-
-                    // iterate the RandomizedQueue, cont. next arg set if satisfiable
-                    boolean foundSatisfiableArg = false;
-                    while(!nArgRandQueue.isEmpty()){
-                        Object randElm_arg_i = nArgRandQueue.poll();
-                        if (foundSatisfiableArg = filter.apply(randElm_arg_i)){
-                            filteredArguments.add(randElm_arg_i);
-                            break;
-                        }
-                    }
-                    if (!foundSatisfiableArg){
-                        throw new NoSuchElementException(String.format("No elements from key: %s satisfies filter %s on element: %s\n", key, argumentFilters, i));
-                    }
-
+            if (argumentFilters == null || argumentFilters.isEmpty()){
+                argumentFilters = new ArrayList<>();
+                Function<Object, Boolean> alwaysTrue = (Object) -> { return true; };
+                for(int i = 0; i < argList.size(); i++){
+                    argumentFilters.add(alwaysTrue);
                 }
-                return filteredArguments;
             }
+            List<Object> filteredArguments = new ArrayList<>();
+            for(int i = 0; i < argList.size(); i++){
+                Function<Object, Boolean> filter = argumentFilters.get(i);
+                rand.nextInt(argList.size());
+                final int _i = i;
+                // get ith arg element from entire list of cached objects
+                Queue<Object> nArgRandQueue = new RandomizedQueue<Object>(
+                        argList
+                        .stream()
+                        .map((List<ArgumentObjectInfo> argList_i) -> argList_i.get(_i))
+                        .collect(Collectors.toList())
+                );
 
-            // no arg filters
-            return argList.get(rand.nextInt(argList.size()))
-                    .stream()
-                    .map(x->x.getObject_())
-                    .collect(Collectors.toList());
+                // iterate the RandomizedQueue, cont. next arg set if satisfiable
+                boolean foundSatisfiableArg = false;
+                while(!nArgRandQueue.isEmpty()){
+                    Object randElm_arg_i = nArgRandQueue.poll();
+                    if (foundSatisfiableArg = filter.apply(randElm_arg_i)){
+                        filteredArguments.add(randElm_arg_i);
+                        break;
+                    }
+                }
+                if (!foundSatisfiableArg){
+                    throw new NoSuchElementException(String.format("No elements from key: %s satisfies filter %s on element: %s\n", key, argumentFilters, i));
+                }
+
+            }
+            return filteredArguments;
+
+//            // no arg filters
+//            return argList.get(rand.nextInt(argList.size()))
+//                    .stream()
+//                    .map(x->x.getObject_())
+//                    .collect(Collectors.toList());
         }
 
         throw new NullPointerException("No such method name cached: " + key + ".");
