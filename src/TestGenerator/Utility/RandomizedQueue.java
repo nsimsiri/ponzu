@@ -67,10 +67,11 @@ public class RandomizedQueue<E> implements Queue<E>{
 
     public E poll(){
         if (this.isEmpty()) return null;
-        int randIdx = new Random().nextInt();
+        int randIdx = new Random().nextInt(this.nextIdx);
         E randElm = this.elements[randIdx];
-        this.elements[randIdx] = this.elements[nextIdx];
-        this.elements[nextIdx] = null;
+        this.elements[randIdx] = this.elements[nextIdx-1];
+        this.elements[nextIdx-1] = null;
+        this.nextIdx--;
         return randElm;
     }
 
@@ -99,11 +100,22 @@ public class RandomizedQueue<E> implements Queue<E>{
     }
 
     public <T> T[] toArray(T[] e){
-        throw new NotImplementedException();
+        if (e.length!=this.nextIdx){
+            throw new IllegalArgumentException("Array of different length");
+        }
+        for(int i = 0; i < this.nextIdx; i++){
+            e[i] = (T)this.elements[i];
+        }
+        return e;
     }
 
     public E[] toArray(){
-        return Arrays.copyOfRange(this.elements, 0, nextIdx);
+        return (E[])Arrays.copyOfRange(this.elements, 0, nextIdx);
+    }
+
+    @Override
+    public String toString(){
+        return Arrays.toString(toArray());
     }
 
     public boolean removeAll(Collection<?> collection){
@@ -132,10 +144,6 @@ public class RandomizedQueue<E> implements Queue<E>{
             l.add(this.poll());
         }
         return l.iterator();
-    }
-
-    public static void main(String[] args){
-
     }
 
 

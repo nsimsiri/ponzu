@@ -45,7 +45,7 @@ public class RandomizedArgumentMap implements Serializable, IArgumentCache {
         }
     }
 
-    public List<Object> get(String methodName, List<String> argumentType, List<Function<Object, Boolean>> argumentFilters){
+    public List<Object> get(String methodName, List<String> argumentType, List<Function<ArgumentObjectInfo, Boolean>> argumentFilters){
         MethodSignaturesPair key = MethodSignaturesPair.fromSignatureString(methodName, argumentType);
         return _get(key, argumentFilters);
     }
@@ -54,53 +54,53 @@ public class RandomizedArgumentMap implements Serializable, IArgumentCache {
         return this.get(methodName, argumentType, null);
     }
 
-    private List<Object> _get(MethodSignaturesPair key, List<Function<Object, Boolean>> argumentFilters){
+    private List<Object> _get(MethodSignaturesPair key, List<Function<ArgumentObjectInfo, Boolean>> argumentFilters){
         if (this.cacheMap.containsKey(key)) {
             // randomizes cached object
             Random rand = new Random();
             List<List<ArgumentObjectInfo>> argList = this.cacheMap.get(key);
+            int n_method_args = argList.get(0).size(); // number of arguments declared in method
+
             // argument filters passed
             if (argumentFilters == null || argumentFilters.isEmpty()){
                 argumentFilters = new ArrayList<>();
-                Function<Object, Boolean> alwaysTrue = (Object) -> { return true; };
-                for(int i = 0; i < argList.size(); i++){
+                Function<ArgumentObjectInfo, Boolean> alwaysTrue = (Object) -> { return true; };
+                for(int i = 0; i < n_method_args; i++){
                     argumentFilters.add(alwaysTrue);
                 }
             }
             List<Object> filteredArguments = new ArrayList<>();
-            for(int i = 0; i < argList.size(); i++){
-                Function<Object, Boolean> filter = argumentFilters.get(i);
-                rand.nextInt(argList.size());
+            for(int i = 0; i < n_method_args; i++){
+                Function<ArgumentObjectInfo, Boolean> filter = argumentFilters.get(i);
                 final int _i = i;
                 // get ith arg element from entire list of cached objects
-                Queue<Object> nArgRandQueue = new RandomizedQueue<Object>(
+                Queue<ArgumentObjectInfo> nArgRandQueue = new RandomizedQueue<>(
                         argList
                         .stream()
                         .map((List<ArgumentObjectInfo> argList_i) -> argList_i.get(_i))
                         .collect(Collectors.toList())
                 );
 
+//                List<ArgumentObjectInfo> ll = Arrays.asList(nArgRandQueue.toArray(new ArgumentObjectInfo[nArgRandQueue.size()]));
+//                Set<String> ss = new HashSet<>(ll.stream().map((x) -> x.getClass_().getSimpleName()).collect(Collectors.toList()));
+//                System.out.format("\t%s: \n\t\t-> %s\n", ss, nArgRandQueue.toString());
+
                 // iterate the RandomizedQueue, cont. next arg set if satisfiable
                 boolean foundSatisfiableArg = false;
                 while(!nArgRandQueue.isEmpty()){
-                    Object randElm_arg_i = nArgRandQueue.poll();
+                    ArgumentObjectInfo randElm_arg_i = nArgRandQueue.poll();
                     if (foundSatisfiableArg = filter.apply(randElm_arg_i)){
                         filteredArguments.add(randElm_arg_i);
                         break;
                     }
                 }
                 if (!foundSatisfiableArg){
+                    // should not throw since the invariant mined must be from some concrete trace.
                     throw new NoSuchElementException(String.format("No elements from key: %s satisfies filter %s on element: %s\n", key, argumentFilters, i));
                 }
 
             }
             return filteredArguments;
-
-//            // no arg filters
-//            return argList.get(rand.nextInt(argList.size()))
-//                    .stream()
-//                    .map(x->x.getObject_())
-//                    .collect(Collectors.toList());
         }
 
         throw new NullPointerException("No such method name cached: " + key + ".");

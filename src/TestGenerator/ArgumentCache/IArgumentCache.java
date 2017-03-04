@@ -12,7 +12,7 @@ public interface IArgumentCache {
 
     public void append(String method, List<ArgumentObjectInfo> objInfoList);
     public List<Object> get(String method, List<String> argumentTypes);
-    public List<Object> get(String method, List<String> argumentTypes, List<Function<Object, Boolean>> argumentFilters);
+    public List<Object> get(String method, List<String> argumentTypes, List<Function<ArgumentObjectInfo, Boolean>> argumentFilters);
     public boolean contains(String method, List<String> argumentTypes);
     public Set<MethodSignaturesPair> keySet();
 }
