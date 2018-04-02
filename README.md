@@ -3,7 +3,7 @@ Automated Test Generator using model inference and dynamic invariant mining
 
 Model Inference Algorithm: State-Enhanced K-tails (http://people.cs.umass.edu/~brun/pubs/pubs/Krka14fse.pdf)
 
-*PROGRESSION: Laptop with data/vm died during military service and wasn't able to retrieve data (SSD w/ PCI), currently backtracking progress. Need to Get Ponzu running on 64bit MacOS with own yices java bindings. Binding is done, need to integrate and try generating tests.*
+**PROGRESSION: Laptop with data/vm died during military service and wasn't able to retrieve data (SSD w/ PCI), currently backtracking progress. Need to Get Ponzu running on 64bit MacOS with own yices java bindings. Binding is done, need to integrate and try generating tests.**
 
 ### Dependencies:
 
