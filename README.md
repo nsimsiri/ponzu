@@ -12,7 +12,7 @@ Model Inference Algorithm: State-Enhanced K-tails (http://people.cs.umass.edu/~b
   - JUnit (latest)
   - ModBat (http://fmv.jku.at/modbat/)
   - Daikon 5.6.2
-  - Yices (Currently ~~working on~~ testing 64-bit Yices Java Language Binding (summer '18 mini-project, without this a VM needs to be used)
+  - Yices (Currently ~~working on~~ testing 64-bit Yices Java Language Binding)
 
 ### Pipeline
 ![alt_text](https://raw.githubusercontent.com/nsimsiri/ponzu/master/pipeline.png)
